@@ -1,4 +1,5 @@
 .ruff_cache
+.pytest_cache
 .task
 .venv
 __pycache__

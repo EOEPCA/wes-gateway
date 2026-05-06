@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = 'WES API Gateway'
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
+license = "Apache-2.0"
 keywords = []
 authors = [
   { name = "stripodi", email = "simone.tripodi@terradue.com" },
@@ -16,16 +16,18 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "fastapi==0.136.1"
+  "fastapi==0.136.1",
+  "pydantic>=2.0.0,<3.0.0",
+  "python-multipart>=0.0.20,<1.0.0",
 ]
 
 [project.urls]
@@ -44,7 +46,7 @@ extra-dependencies = [
 check = "mypy --install-types --non-interactive {args:src/wes_api_gateway tests}"
 
 [tool.coverage.run]
-source_pkgs = ["wes_api_gateway", "tests"]
+source_pkgs = ["wes_api_gateway"]
 branch = true
 parallel = true
 omit = [
@@ -53,7 +55,6 @@ omit = [
 
 [tool.coverage.paths]
 wes_api_gateway = ["src/wes_api_gateway"]
-tests = ["tests"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -61,3 +62,32 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.hatch.envs.test]
+description = "Test environment"
+skip-install = false
+dependencies = ["pytest==9.0.2", "pytest-cov==7.0.0"]
+
+[tool.hatch.envs.test.scripts]
+test = "pytest"
+test-q = "pytest -q"
+test-cov = "pytest --cov=src/wes_api_gateway"
+test-show-setup = "pytest --setup-show"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+[tool.hatch.envs.dev]
+description = "Development environment"
+dependencies = [
+  "pytest==9.0.2",
+  "ruff==0.15.6",
+]
+
+[tool.hatch.envs.dev.scripts]
+lint = "ruff format src tests"
+check = "ruff check --fix src tests"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

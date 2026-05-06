@@ -1,0 +1,86 @@
+# Copyright 2026 EOEPCA
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+site_name: WES API Gateway
+site_url: https://EOEPCA.github.io/wes-gateway/
+site_author: Fabrice Brito, Simone Tripodi
+repo_url: https://github.com/EOEPCA/wes-gateway/
+repo_name: EOEPCA/wes-gateway
+
+theme:
+  name: material
+
+  palette:
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    toggle:
+      icon: material/toggle-switch-off-outline
+      name: Switch to dark mode
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    toggle:
+      icon: material/toggle-switch
+      name: Switch to light mode
+
+plugins:
+  - search
+  - build_plantuml:
+      render: 'server' # or "local" for local rendering
+      disable_ssl_certificate_validation: true # for self-signed and invalid certs
+      output_format: 'svg'
+      allow_multiple_roots: false # in case your codebase contains more locations for diagrams (all ending in diagram_root)
+      diagram_root: 'docs/diagrams' # should reside under docs_dir
+      input_folder: 'src'
+      output_folder: 'out'
+      theme_enabled: true
+      theme_folder: "include/themes"
+      theme_light: "light.puml"
+      theme_dark: "dark.puml"
+
+markdown_extensions:
+  - pymdownx.details
+  - abbr
+  - admonition
+  - footnotes
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.tabbed
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_div_format
+  - attr_list
+  - pymdownx.snippets:
+      base_path: './'
+  - pymdownx.highlight:
+      line_spans: __span
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Submit and monitor a CWL workflow: tutorials/submit-and-monitor-cwl.md
+  - How-to guides:
+    - Submit workflow runs: how-to-guides/submit-workflow-runs.md
+    - Monitor and cancel runs: how-to-guides/monitor-and-cancel-runs.md
+  - Reference:
+    - API reference: reference/api.md
+    - Generated OpenAPI: c4/components/OpenAPI/apidoc.html
+  - Explanation:
+    - Architecture: explanation/architecture.md
+
+copyright: <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="Apache License, Version 2.0" /></a>
