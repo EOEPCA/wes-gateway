@@ -31,20 +31,9 @@ tasks:
     - task: openapi:generate_skeleton
       vars:
         API: 'schemas/openapi.json'
-        OUTPUT: 'gateway/src'
-
-  generate_client:
-    deps:
-    - download_openapi
-    cmds:
-    - mkdir -p client/src
-    - task: openapi:generate_client
-      vars:
-        API: 'schemas/openapi.json'
-        OUTPUT: 'client/src'
+        OUTPUT: './src/wes_api_gateway'
 
   default:
     cmds:
     - task: generate_docs
     - task: generate_skeleton
-    - task: generate_client
