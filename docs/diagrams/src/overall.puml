@@ -1,0 +1,23 @@
+@startuml
+
+component "WES Gateway Client" as wes_c
+
+interface "WES APIs over HTTP" as wes
+component "WES Gateway" as wes_gw
+
+component "Toil k8s" as toil_k8s
+component "k8s" as k8s
+
+component "Toil HPC" as toil_hpc
+component "SLURM / PBS" as slurm_pbs
+
+wes_c --> wes : Invoke WES APIs
+wes -- wes_gw : Handle
+
+wes_gw --> toil_k8s
+toil_k8s --> k8s
+
+wes_gw --> toil_hpc
+toil_hpc --> slurm_pbs
+
+@enduml

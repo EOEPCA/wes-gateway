@@ -2,6 +2,8 @@
 
 WES API Gateway is the HTTP-facing WES implementation for workflow execution. It gives clients the standard GA4GH Workflow Execution Service shape while delegating workflow execution concerns to Toil.
 
+![Overall Architecture](../diagrams/out/overall.svg)
+
 ## Responsibility Split
 
 The gateway is responsible for the API boundary:
