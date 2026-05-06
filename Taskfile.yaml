@@ -1,0 +1,50 @@
+version: '3'
+
+includes:
+  openapi: https://raw.githubusercontent.com/Terradue/taskfile-utils/refs/heads/main/openapi.yaml
+
+tasks:
+
+  download_openapi:
+    internal: true
+    status:
+    - '[ -f schemas/openapi.json ]'
+    cmds:
+    - mkdir -p schemas
+    - |
+      wget -O schemas/openapi.json \
+      https://ga4gh.github.io/workflow-execution-service-schemas/openapi.json 
+
+  generate_docs:
+    deps:
+    - download_openapi
+    cmds:
+    - task: openapi:generate_docs
+      vars:
+        API: 'schemas/openapi.json'
+        OUTPUT: 'docs/c4/components/OpenAPI/apidoc.html'
+
+  generate_skeleton:
+    deps:
+    - download_openapi
+    cmds:
+    - task: openapi:generate_skeleton
+      vars:
+        API: 'schemas/openapi.json'
+        OUTPUT: 'gateway/src'
+
+  generate_client:
+    deps:
+    - download_openapi
+    cmds:
+    - mkdir -p client/src
+    - task: openapi:generate_client
+      vars:
+        API: 'schemas/openapi.json'
+        OUTPUT: 'client/src'
+
+  default:
+    cmds:
+    - task: generate_docs
+    - task: generate_skeleton
+    - task: generate_client
