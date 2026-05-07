@@ -88,6 +88,13 @@ dependencies = [
 lint = "ruff format src tests"
 check = "ruff check --fix src tests"
 
+[tool.hatch.envs.prod]
+description = "Production container environment"
+path = "/app/envs/appuser"
+dependencies = [
+  "uvicorn[standard]>=0.30.0,<1.0.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
