@@ -18,10 +18,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
-
-from fastapi import FastAPI, UploadFile
-
 from .models import (
     ErrorResponse,
     RunId,
@@ -32,6 +28,9 @@ from .models import (
     TaskListResponse,
     TaskLog,
 )
+from fastapi import FastAPI, HTTPException, UploadFile
+from http import HTTPStatus
+from typing import List, Optional, Union
 
 app = FastAPI(
     title="Workflow Execution Service",
@@ -68,7 +67,8 @@ def list_runs(
     """
     ListRuns
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.post(
@@ -86,7 +86,8 @@ def run_workflow(workflow_attachment: List[UploadFile]) -> Union[RunId, ErrorRes
     """
     RunWorkflow
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.get(
@@ -104,7 +105,8 @@ def get_run_log(run_id: str) -> Union[RunLog, ErrorResponse]:
     """
     GetRunLog
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.post(
@@ -122,7 +124,8 @@ def cancel_run(run_id: str) -> Union[RunId, ErrorResponse]:
     """
     CancelRun
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.get(
@@ -140,7 +143,8 @@ def get_run_status(run_id: str) -> Union[RunStatus, ErrorResponse]:
     """
     GetRunStatus
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.get(
@@ -160,7 +164,8 @@ def list_tasks(
     """
     ListTasks
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.get(
@@ -178,7 +183,8 @@ def get_task(run_id: str, task_id: str = ...) -> Union[TaskLog, ErrorResponse]:
     """
     GetTask
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
 
 
 @app.get(
@@ -196,4 +202,5 @@ def get_service_info() -> Union[ServiceInfo, ErrorResponse]:
     """
     GetServiceInfo
     """
-    pass
+    # for now, return not implemented
+    raise HTTPException(status_code=HTTPStatus.NOT_IMPLEMENTED.value)
