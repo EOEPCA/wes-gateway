@@ -4,6 +4,8 @@ WES API Gateway is the HTTP-facing WES implementation for workflow execution. It
 
 ![Overall Architecture](../diagrams/out/overall.svg)
 
+![Sequence Diagram](../diagrams/out/sequence.svg)
+
 ## Responsibility Split
 
 The gateway is responsible for the API boundary:
