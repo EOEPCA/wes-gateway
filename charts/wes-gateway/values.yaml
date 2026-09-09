@@ -1,0 +1,55 @@
+nameOverride: ""
+fullnameOverride: ""
+replicaCount: 1
+image:
+  repository: dev.local/eoepca/wes-gateway
+  tag: latest
+  # Skaffold supplies the fully qualified image built in the current iteration.
+  ref: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+service:
+  type: ClusterIP
+  port: 8090
+serviceAccount:
+  create: true
+  name: ""
+persistence:
+  enabled: true
+  existingClaim: ""
+  size: 1Gi
+  # Empty uses the cluster's default StorageClass.
+  storageClass: ""
+database:
+  url: sqlite:////data/wes-gateway.db
+  # Set both to use a Secret containing WES_DATABASE_URL (e.g. PostgreSQL).
+  secretName: ""
+  secretKey: ""
+# Optional complete registry YAML, supplied with --set-file backendConfig=...
+# This replaces registry in full, avoiding Helm's recursive map merging.
+backendConfig: ""
+registry:
+  version: 1
+  backends:
+    toil-a:
+      type: toil
+      base_url: http://toil-wes.tenant-a.svc:8080/ga4gh/wes/v1
+    toil-b:
+      type: toil
+      base_url: http://toil-wes.tenant-b.svc:8080/ga4gh/wes/v1
+  namespaces:
+    tenant-a:
+      backend: toil-a
+    tenant-b:
+      backend: toil-b
+# Use secretKeyRef entries here for backend credential environment variables.
+extraEnv: []
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,101 +1,63 @@
-# API Reference
+# API reference
 
-The gateway exposes the GA4GH WES API through FastAPI. The generated source in `src/wes_api_gateway/main.py` declares the route functions, and `src/wes_api_gateway/models.py` declares the Pydantic response and data models.
+The public base path is `/wes/v1/{namespace}`. `/openapi.json` and `/docs` on the
+running gateway describe its routes. The checked-in upstream OpenAPI document and
+its HTML rendering are a WES schema reference, not the gateway routing contract.
 
-For the full OpenAPI rendering, see the [generated OpenAPI page](../c4/components/OpenAPI/apidoc.html).
+| Method | Resource | Behavior |
+| --- | --- | --- |
+| GET | `/service-info` | Backend capabilities; deployment `--setEnv` defaults omitted |
+| POST | `/runs` | Submit multipart fields/attachments; return a durable gateway run ID |
+| GET | `/runs` | Namespace-owned runs and refreshed states, with gateway pagination |
+| GET | `/runs/{run_id}` | Request, state, logs, outputs, and reserved namespace tags |
+| GET | `/runs/{run_id}/status` | Gateway run ID and current backend state |
+| POST | `/runs/{run_id}/cancel` | Forward cancellation; poll status for terminal state |
+| GET | `/runs/{run_id}/tasks` | Forward task listing if the backend supports it |
+| GET | `/runs/{run_id}/tasks/{task_id}` | Forward task detail if supported |
+| GET | `/runs/{run_id}/artifacts/{token}` | Stream a recorded run-scoped log/output artifact |
 
-## Base URL
+Multipart submission requires `workflow_url`, `workflow_type`,
+`workflow_type_version`, and JSON-object `workflow_params`. Optional fields are
+JSON-object `tags` and `workflow_engine_parameters`, `workflow_engine`,
+`workflow_engine_version`, and repeated `workflow_attachment` files. A workflow
+engine version requires a workflow engine. URL-only submissions need no attachment.
+Duplicate scalar fields, unknown fields, invalid JSON, missing required fields,
+or unsafe/duplicate attachment filenames return `400`. Tags and engine parameters
+map strings to strings. The multipart parser allows at most 100 files and 100
+text fields, with the total body bounded by `max_upload_bytes`. Accepted filenames
+and packed-workflow fragments are forwarded unchanged.
 
-The OpenAPI server template uses:
+Lists return `workflows` and `next_page_token`. They accept `page_size` (1–1000,
+default 100) and an opaque namespace-scoped `page_token`. Records are oldest first
+in gateway creation order; the first page is not a list of the newest runs. States
+are refreshed per request and new records can appear on later pages. There is no
+snapshot, tag filter, or caller-identity filter. Direct-Toil runs and runs stored
+in a different gateway database are excluded. An empty namespace returns
+`{"workflows":[],"next_page_token":""}`. Detail request tags and list summary
+tags include `gateway.namespace`, `gateway.backend`, and `gateway.run_id`.
 
-```text
-https://{defaultHost}/{basePath}/{apiVersion}
-```
+Backend JSON is preserved rather than validated as a newer WES version. Toil 9.4.1
+advertises WES 1.0; task routes may be unavailable. The OpenAPI info version is
+`1.1.0`; it does not claim that every registered backend supports WES 1.1. The
+gateway preserves actual states and never turns `CANCELING` into `CANCELED` without backend confirmation.
+An ambiguous submission has `UNKNOWN` state until operator reconciliation.
 
-The default WES path is:
-
-```text
-/ga4gh/wes/v1
-```
-
-In examples, this documentation uses:
-
-```sh
-export WES_URL=http://localhost:8080/ga4gh/wes/v1
-```
-
-## Endpoints
-
-| Method | Path | FastAPI function | Response model | Purpose |
-| --- | --- | --- | --- | --- |
-| `GET` | `/service-info` | `get_service_info` | `ServiceInfo` | Discover supported WES versions, workflow types, Toil engine versions, filesystem protocols, state counts, and service metadata. |
-| `GET` | `/runs` | `list_runs` | `RunListResponse` | List runs visible to the caller. Supports `page_size` and `page_token`. |
-| `POST` | `/runs` | `run_workflow` | `RunId` | Submit a workflow run as multipart form data. |
-| `GET` | `/runs/{run_id}` | `get_run_log` | `RunLog` | Return detailed run request, state, logs, task log URL, and outputs. |
-| `GET` | `/runs/{run_id}/status` | `get_run_status` | `RunStatus` | Return a lightweight run state response. |
-| `POST` | `/runs/{run_id}/cancel` | `cancel_run` | `RunId` | Request cancellation for a run. |
-| `GET` | `/runs/{run_id}/tasks` | `list_tasks` | `TaskListResponse` | List task logs for a run. Supports `page_size` and `page_token`. |
-| `GET` | `/runs/{run_id}/tasks/{task_id}` | `get_task` | `TaskLog` | Return one task log. |
-
-## Run Submission Fields
-
-`POST /runs` uses `multipart/form-data`.
-
-| Field | Required | Type | Description |
-| --- | --- | --- | --- |
-| `workflow_url` | yes | string | Primary CWL or WDL document. Can be absolute, or relative to an uploaded `workflow_attachment`. |
-| `workflow_type` | yes | string | Workflow descriptor type, such as `CWL` or `WDL`, if supported by the deployment. |
-| `workflow_type_version` | yes | string | Descriptor version, such as `v1.0`. Check `GET /service-info` for supported values. |
-| `workflow_params` | usually | JSON object encoded as string | Workflow inputs and output locations. The shape depends on the workflow language. |
-| `workflow_attachment` | no | file array | Uploaded workflow files, tools, or inputs used by the run. |
-| `workflow_engine` | no | string | Workflow engine name. This gateway is intended to run through Toil. |
-| `workflow_engine_version` | no | string | Requested engine version, when the deployment supports version selection. |
-| `workflow_engine_parameters` | no | JSON object encoded as string | Engine parameters passed to Toil, subject to deployment policy. |
-| `tags` | no | JSON object encoded as string | Client metadata stored with the run. |
-
-## Run States
-
-The `State` enum in `models.py` contains:
-
-| State | Meaning |
+| Status | Meaning |
 | --- | --- |
-| `UNKNOWN` | The state is not known or was not reported. |
-| `QUEUED` | The run is waiting to start. |
-| `INITIALIZING` | The run has been assigned and is preparing to execute. |
-| `RUNNING` | The workflow is executing. |
-| `PAUSED` | The workflow is paused, if supported by the implementation. |
-| `COMPLETE` | The workflow finished successfully. |
-| `EXECUTOR_ERROR` | A workflow executor process failed. |
-| `SYSTEM_ERROR` | The service or infrastructure failed outside the workflow executor. |
-| `CANCELED` | The run was cancelled. |
-| `CANCELING` | Cancellation has been requested and is in progress. |
-| `PREEMPTED` | The run was stopped because compute capacity was reclaimed. |
+| 400 | Invalid request fields, namespace-scoped page token, or upstream client error |
+| 404 | Unknown namespace, run not owned by namespace, missing artifact/task |
+| 409 | Submission must be reconciled before cancellation/task retrieval |
+| 413 | Configured upload or directory listing limit exceeded |
+| 502 | Backend transport, JSON, or artifact retrieval failure |
+| 503 | Run metadata storage unavailable |
+| 504 | Backend timeout |
 
-## ServiceInfo
+Gateway errors contain `msg` and `status_code`. Upstream error status and JSON are
+preserved where available. Unknown submission outcomes also include
+`gateway_run_id`; do not automatically retry submission. No client identity is
+validated by these routes; external authentication/authorization is required.
 
-`GET /service-info` returns `ServiceInfo`, which extends GA4GH service metadata with WES-specific capability fields:
-
-- `workflow_type_versions`
-- `supported_wes_versions`
-- `supported_filesystem_protocols`
-- `workflow_engine_versions`
-- `default_workflow_engine_parameters`
-- `system_state_counts`
-- `auth_instructions_url`
-- `tags`
-
-Use this endpoint to make a client adaptive. A client should not hard-code CWL, WDL, Toil version, filesystem protocol, or authentication assumptions if the deployment reports them dynamically.
-
-## Error Responses
-
-The source declares `ErrorResponse` for common error statuses:
-
-| Status | Typical meaning |
-| --- | --- |
-| `400` | Malformed request. |
-| `401` | Authentication is missing or invalid. |
-| `403` | Caller is authenticated but not authorized for the action. |
-| `404` | Requested run or task does not exist or is not visible to the caller. |
-| `500` | Unexpected service error. |
-
-`ErrorResponse` contains `msg` and `status_code`.
+Unprefixed `/runs` and `/service-info`, and `/ga4gh/wes/v1/...`, return `404` unless
+`default_namespace` is configured. With a default they return `307` redirects to
+namespaced routes, preserving method and query. Configure clients with the final
+namespaced URL to avoid submission redirects.

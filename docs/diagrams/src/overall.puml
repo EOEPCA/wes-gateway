@@ -1,37 +1,30 @@
 @startuml
-!include <kubernetes/k8s-sprites-unlabeled-25pct>
-
-component "WES Gateway Client" as wes_c
-
-interface """0.0.0.0:8090""" as wes
-
-component "Knative Service" as knservice {
-    component uvicorn
-    component "WES Gateway" as ws_gw {
-        component "FastAPI" as fastapi
-    }
-
-    internal_http -- uvicorn
-    uvicorn -> ws_gw : Invoke ""wes-gateway.main:app""
+title Current WES Gateway deployment
+actor "WES client" as client
+rectangle "Helm release: wes-gateway" {
+  component "Service :8090" as service
+  component "Deployment\nUvicorn + FastAPI\nwes_api_gateway.main:app" as gateway
+  artifact "Backend ConfigMap" as config
+  database "Gateway run/artifact records\nSQLite PVC (default)" as records
 }
-
-cloud "<$node>\nk8s" as k8s {
-    component "<$node>\nToil k8s" as toil_k8s
+rectangle "Toil bootstrap (separate deployment)" {
+  component "Toil WES\ntenant-a" as a
+  component "Toil WES\ntenant-b" as b
+  component "Celery + Kubernetes execution" as execution
+  database "Workflow storage" as storage
 }
-
-component "Toil HPC" as toil_hpc
-component "SLURM / PBS" as slurm_pbs
-
-component "OIDC/RBAC" as oidc_rbac
-
-wes_c --> wes : Invoke WES APIs\nover HTTP
-wes -- internal_http : Handle
-
-knservice --> toil_k8s
-
-knservice -> toil_hpc
-toil_hpc -> slurm_pbs
-
-ws_gw --> oidc_rbac
-
+client --> service : /wes/v1/{namespace}
+service --> gateway
+gateway --> config : load registry at startup
+gateway --> records : persist namespace and original backend
+gateway --> a : WES HTTP requests
+gateway --> b : WES HTTP requests
+a --> execution
+b --> execution
+execution --> storage
+note bottom of gateway
+No built-in JWT validation or identity-based RBAC.
+Other WES services can be configured in the registry.
+PostgreSQL is supported as an alternative metadata store.
+end note
 @enduml

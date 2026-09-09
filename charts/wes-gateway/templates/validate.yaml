@@ -1,0 +1,20 @@
+{{- if ne (empty .Values.database.secretName) (empty .Values.database.secretKey) -}}
+{{- fail "database.secretName and database.secretKey must be set together" -}}
+{{- end -}}
+{{- if and (not .Values.database.secretName) (hasPrefix "sqlite:" .Values.database.url) -}}
+{{- if ne (int .Values.replicaCount) 1 -}}
+{{- fail "SQLite requires replicaCount=1; configure PostgreSQL for multiple replicas" -}}
+{{- end -}}
+{{- if not .Values.persistence.enabled -}}
+{{- fail "SQLite requires persistence.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.extraEnv -}}
+{{- if has .name (list "WES_BACKENDS_CONFIG" "WES_DATABASE_URL") -}}
+{{- fail "extraEnv must not override WES_BACKENDS_CONFIG or WES_DATABASE_URL" -}}
+{{- end -}}
+{{- end -}}
+{{- $registry := include "wes-gateway.registry" . | fromYaml -}}
+{{- if or (not $registry.backends) (not $registry.namespaces) -}}
+{{- fail "backend registry must contain nonempty backends and namespaces mappings" -}}
+{{- end -}}

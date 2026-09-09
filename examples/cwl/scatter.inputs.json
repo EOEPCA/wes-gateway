@@ -1,0 +1,7 @@
+{
+  "messages": [
+    "Hello from Toil WES!",
+    "Hello from the second scatter job!",
+    "Hello from the third scatter job!"
+  ]
+}

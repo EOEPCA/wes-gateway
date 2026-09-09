@@ -1,0 +1,13 @@
+# First backend for a fresh gateway deployment.
+version: 1
+backends:
+  toil-a:
+    type: toil
+    base_url: http://toil-wes.tenant-a.svc:8080/ga4gh/wes/v1
+    connect_timeout: 10
+    read_timeout: 60
+    keepalive_expiry: 1
+    verify_tls: true
+namespaces:
+  tenant-a:
+    backend: toil-a

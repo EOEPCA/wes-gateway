@@ -1,76 +1,88 @@
-# wes-gateway
+# WES Gateway
 
-`wes-gateway` is the EOEPCA+ Processing Building Block gateway component for
-exposing multiple Workflow Execution Service (WES) backends through a single,
-consistent API entrypoint.
+EOEPCA's WES Gateway exposes registered WES backends through
+`/wes/v1/{namespace}`. It forwards workflow submissions to Toil over HTTP and
+retains durable namespace/backend associations for monitoring and cancellation.
 
-## Context
+Implemented endpoints under each namespace:
 
-The EOEPCA+ Processing Building Block proposes a hybrid execution architecture
-where independent WES deployments run on different infrastructures:
+- `GET /service-info`
+- `POST /runs` and `GET /runs`
+- `GET /runs/{id}` and `GET /runs/{id}/status`
+- `POST /runs/{id}/cancel`
+- `GET /runs/{id}/tasks` and `GET /runs/{id}/tasks/{task_id}` (backend support required)
+- `GET /runs/{id}/artifacts/{token}` for supported logs and output files
 
-- Kubernetes-backed environments
-- HPC-backed environments
+`config/backends.yaml` declaratively registers the `tenant-a` and `tenant-b` Toil
+Services from `toil-bootstrap`. Namespace names resolve only through this registry.
+Unknown namespaces and wrong-namespace run IDs return `404`.
 
-This repository bootstraps the gateway layer that sits in front of those
-backends and provides shared authentication, authorization, and routing
-semantics.
+## Build and deploy
 
-## WES API context (GA4GH)
+With the separate Toil stack running, execute from this repository root:
 
-The gateway targets the GA4GH Workflow Execution Service (WES) API, which
-defines a standard, platform-agnostic interface to submit and monitor workflows
-across different execution backends.
+```sh
+skaffold dev --port-forward
+```
 
-Reference specification:
+Skaffold builds the Docker image and installs the Helm chart in
+`charts/wes-gateway`, passing `config/backends.yaml` as the registry. It waits for
+the Deployment, forwards port 8090 and watches for changes. Docker, Helm, Skaffold,
+and access to the target Kubernetes context are required.
 
-- GA4GH WES schemas repository:
-  `https://github.com/ga4gh/workflow-execution-service-schemas`
-- Published API docs (currently showing WES 1.1.0):
-  `https://ga4gh.github.io/workflow-execution-service-schemas/docs/`
+- Gateway namespace URL: `http://localhost:8090/wes/v1/tenant-a`
+- Swagger UI: [http://localhost:8090/docs](http://localhost:8090/docs)
+- Readiness: `http://localhost:8090/readyz`
 
-Core WES endpoint groups include:
+For first deployment, follow [Deploy with Toil WES](docs/how-to-guides/deploy-with-toil.md)
+for the diagram, Helm examples, registration and troubleshooting.
 
-- `GET /service-info` for service metadata/capabilities
-- `GET /runs` to list workflow runs
-- `POST /runs` to submit a workflow run
-- `GET /runs/{run_id}` for run logs/details
-- `GET /runs/{run_id}/status` for lightweight run state
-- `POST /runs/{run_id}/cancel` to request cancellation
+Start with the [curl tutorial](docs/tutorials/submit-and-monitor-cwl.md) for workflow
+submission, results, logs, listing and cancellation. See
+[configuration and operations](docs/how-to-guides/configure-backends.md) for
+Docker group access, Helm values, persistence, backend Secrets, recovery, and a
+separate local Python setup using port-forwarded Toil endpoints.
 
-WES request/response contracts are defined by GA4GH OpenAPI schemas. For
-workflow submission, `POST /runs` uses `multipart/form-data` and commonly
-includes fields such as `workflow_url`, `workflow_type`,
-`workflow_type_version`, `workflow_params`, and `workflow_attachment`.
+The default chart uses SQLite on a single-replica PVC. Pod restarts preserve its
+records, but Helm uninstall/Skaffold cleanup deletes a chart-created PVC. Configure
+an externally managed existing claim when metadata must survive teardown.
+Authentication and identity-based namespace authorization are not implemented in
+the gateway and must be provided by the deployment's external access layer.
 
-In `wes-gateway`, these GA4GH endpoints are exposed through namespace-aware
-paths (for example `/wes/v1/{namespace}/runs`) while preserving WES semantics
-and forwarding to the correct backend implementation.
+## Execute and verify workflows
 
-## What the gateway provides
+For the Python example runner and tests, install the local tools first:
 
-- A single entrypoint for WES API access
-- OIDC/JWT authentication validation
-- Namespace-aware routing to backend WES instances
-- Backend abstraction across Kubernetes and HPC execution environments
-- Consistent AuthN/AuthZ behavior across infrastructures
+```sh
+uv venv .venv
+uv pip install --python .venv/bin/python -e . pytest
+```
 
-## Architecture summary
+```sh
+.venv/bin/python examples/run_workflow.py \
+  http://localhost:8090/wes/v1/tenant-a \
+  examples/cwl/hello.cwl examples/cwl/hello.inputs.json \
+  --expected examples/cwl/hello.expected.json --evidence output/hello
+```
 
-The gateway is designed to:
+Use `scatter.cwl`, `scatter.inputs.json`, and `scatter.expected.json` for the
+bootstrap's existing three-message scatter workflow. The original bootstrap
+`examples/cwl/run-hello.sh` also accepts a gateway namespaced URL unchanged.
+The standalone hello fixture here is a new small fixture; it is not claimed to be
+an identified prior evaluated package.
 
-- Validate JWT tokens at the gateway layer
-- Enforce namespace-level RBAC policies
-- Route requests using logical namespace paths such as
-  `/wes/v1/{namespace}/runs`
-- Map logical namespaces to infrastructure-specific targets:
-  - Kubernetes namespaces
-  - HPC partitions/accounts
+```sh
+.venv/bin/pytest -q
+# Explicitly submits live hello/scatter/cancellation workflows to both tenants:
+WES_GATEWAY_URL=http://localhost:8090 .venv/bin/pytest tests/integration -v -s
+```
 
-In this model, Toil WES (or other WES-compatible) deployments remain
-independent, while `wes-gateway` centralizes access control and request routing.
+Live evidence is saved under `output/integration/`. The water-bodies case requires
+`WES_WATER_BODIES_CWL`, `WES_WATER_BODIES_INPUTS`, and `WES_WATER_BODIES_EXPECTED`;
+optional version/entrypoint settings are documented in the integration test.
+It is skipped until those evaluated fixtures are available. The bootstrap's
+NDVI/NDWI example is not assumed to be the water-bodies workflow.
 
-## Repository status
-
-This repository is currently being bootstrapped to establish the baseline
-gateway component within the EOEPCA organization.
+The generated upstream schema remains in `schemas/openapi.json`. The running
+application's `/openapi.json` and `/docs` describe the namespace routes; skeleton
+generation writes into `generated/` to preserve handwritten implementation.

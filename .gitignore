@@ -5,3 +5,8 @@
 __pycache__
 uv.lock
 docs/diagrams/out
+
+*.db
+*.db-journal
+generated/
+output/

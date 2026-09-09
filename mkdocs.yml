@@ -73,13 +73,17 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Tutorials:
-    - Submit and monitor a CWL workflow: tutorials/submit-and-monitor-cwl.md
+    - Run workflows with curl: tutorials/submit-and-monitor-cwl.md
   - How-to guides:
+    - Deploy with Toil WES: how-to-guides/deploy-with-toil.md
+    - Add additional backends: how-to-guides/add-backends.md
+    - Configure backends: how-to-guides/configure-backends.md
     - Submit workflow runs: how-to-guides/submit-workflow-runs.md
     - Monitor and cancel runs: how-to-guides/monitor-and-cancel-runs.md
   - Reference:
     - API reference: reference/api.md
-    - Generated OpenAPI: c4/components/OpenAPI/apidoc.html
+    - Integration results: reference/integration-results.md
+    - Upstream WES schema (not gateway routes): c4/components/OpenAPI/apidoc.html
   - Explanation:
     - Architecture: explanation/architecture.md
 

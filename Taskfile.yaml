@@ -55,7 +55,7 @@ tasks:
     - task: openapi:generate_skeleton
       vars:
         API: 'schemas/openapi.json'
-        OUTPUT: './src/wes_api_gateway'
+        OUTPUT: './generated/wes_api_gateway'
 
   default:
     cmds:

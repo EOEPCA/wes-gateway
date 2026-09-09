@@ -1,0 +1,18 @@
+# Development deployment; supply the built image and registry during Helm install.
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 8090
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""
+  existingClaim: ""
+database:
+  url: sqlite:////data/wes-gateway.db
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi

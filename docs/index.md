@@ -1,44 +1,21 @@
-# WES API Gateway
+# WES Gateway
 
-WES API Gateway exposes the GA4GH Workflow Execution Service API as the HTTP contract for submitting, observing, and cancelling workflow runs. In this project, the gateway is the API boundary in front of a Toil workflow execution layer, so clients can use standard WES calls while Toil performs the workflow execution work.
+The gateway exposes registered WES services under `/wes/v1/{namespace}`. It forwards
+workflow execution requests to Toil and stores durable namespace/backend associations
+for each gateway run ID. The included registry points to the two `toil-bootstrap`
+tenants. Skaffold builds the image and installs the Helm chart in
+`charts/wes-gateway`, which creates a Deployment, Service, ConfigMap and metadata PVC.
 
-The source currently defines a FastAPI service generated from the WES OpenAPI schema:
+Start with [deploying the gateway with Toil WES](how-to-guides/deploy-with-toil.md), then
+[run a workflow with curl](tutorials/submit-and-monitor-cwl.md).
+To extend a running installation, see [Add additional backends](how-to-guides/add-backends.md).
+The [API reference](reference/api.md) describes public routes, multipart fields,
+namespace pagination, and errors. The running service publishes `/openapi.json`
+and `/docs`; the generated upstream HTML is a schema reference only.
 
-- `src/wes_api_gateway/main.py` declares the WES endpoints.
-- `src/wes_api_gateway/models.py` declares the request and response models.
-- `schemas/openapi.json` is the bundled GA4GH WES OpenAPI contract used to generate the API surface.
-- `docs/c4/components/OpenAPI/apidoc.html` is the generated OpenAPI reference.
+A local gateway endpoint is `http://localhost:8090/wes/v1/tenant-a`. Toil's internal
+endpoint remains `/ga4gh/wes/v1`. Use namespaced `/service-info` to discover the
+backend's actual supported WES and workflow versions.
 
-The documentation is organised with the [Diataxis](https://diataxis.fr/) convention:
-
-- **Tutorials** help you learn the API by completing a small workflow run.
-- **How-to guides** show task-focused procedures such as submitting, monitoring, and cancelling runs.
-- **Reference** lists endpoints, fields, states, and generated OpenAPI material.
-- **Explanation** describes how this gateway relates to Toil and why the API is structured this way.
-
-## API Shape
-
-The public API follows the WES base path used by Toil and the OpenAPI schema:
-
-```text
-/ga4gh/wes/v1
-```
-
-For local experiments, a Toil WES service commonly listens at:
-
-```text
-http://localhost:8080/ga4gh/wes/v1
-```
-
-Use `GET /service-info` to discover the workflow languages, WES versions, filesystem protocols, engine versions, default engine parameters, service metadata, and state counts exposed by a deployment.
-
-## Where To Start
-
-If you are new to the gateway, start with [Submit and monitor a CWL workflow](tutorials/submit-and-monitor-cwl.md).
-
-If you already know WES and need a command, use the how-to guides:
-
-- [Submit workflow runs](how-to-guides/submit-workflow-runs.md)
-- [Monitor and cancel runs](how-to-guides/monitor-and-cancel-runs.md)
-
-For the exact API contract, see [API reference](reference/api.md) and the [generated OpenAPI page](c4/components/OpenAPI/apidoc.html).
+See the [architecture](explanation/architecture.md) for ownership, persistence,
+and recovery. Identity-based authentication/authorization is supplied separately.

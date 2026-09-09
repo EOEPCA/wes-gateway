@@ -1,0 +1,13 @@
+version: 1
+backends:
+  toil-a:
+    type: toil
+    base_url: http://toil-wes.tenant-a.svc:8080/ga4gh/wes/v1
+  toil-b:
+    type: toil
+    base_url: http://toil-wes.tenant-b.svc:8080/ga4gh/wes/v1
+namespaces:
+  tenant-a:
+    backend: toil-a
+  tenant-b:
+    backend: toil-b
