@@ -1,0 +1,12 @@
+# Replace the server and use a nodeMountPath dedicated to this release.
+nfsMount:
+  enabled: true
+  server: nfs.example.internal
+  path: /exports/toil
+  nodeMountPath: /mnt/toil-shared
+sharedStorage:
+  enabled: true
+  create: true
+  storageClass: ""
+  accessMode: ReadWriteMany
+enable_cache: true

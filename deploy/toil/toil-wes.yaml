@@ -1,0 +1,33 @@
+fullnameOverride: toil-wes
+# Existing registry Secrets must be present in each tenant namespace.
+imagePullSecrets: []
+#  - name: registry-credentials
+celery:
+  enabled: true
+  replicaCount: 1
+  brokerSecret:
+    name: toil-rabbitmq
+    key: broker-url
+  resultBackend: rpc://
+s3:
+  realaws: false
+  host: seaweedfs-s3.seaweedfs.svc
+  port: "8333"
+  useSsl: false
+  credentialsSecret:
+    name: toil-s3
+    accessKeyKey: AWS_ACCESS_KEY_ID
+    secretKeyKey: AWS_SECRET_ACCESS_KEY
+env:
+  TOIL_WES_JOB_STORE_TYPE: aws
+  AWS_S3_ADDRESSING_STYLE: path
+sharedStorage:
+  enabled: true
+  create: true
+  accessMode: ReadWriteMany
+  size: 20Gi
+  # Replace with the name of your existing RWX StorageClass.
+  storageClass: "standard"
+
+# WES and Celery may run on different nodes with the shared RWX volume.
+affinity: {}

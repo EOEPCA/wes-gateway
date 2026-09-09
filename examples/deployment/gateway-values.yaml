@@ -1,4 +1,4 @@
-# Development deployment; supply the built image and registry during Helm install.
+# Single-replica deployment; supply your image and registry during Helm install.
 replicaCount: 1
 service:
   type: ClusterIP

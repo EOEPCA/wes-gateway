@@ -1,0 +1,332 @@
+{
+  "type": "object",
+  "description": "Standalone Toil WES configuration.",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Enable deployment of a Toil WES server in the cluster."
+    },
+    "replicaCount": {
+      "type": "integer",
+      "description": "Number of Toil WES replicas to run.",
+      "minimum": 1
+    },
+    "celery": {
+      "type": "object",
+      "description": "Optional Celery-based execution mode for Toil WES. When enabled, the WES server sends workflow runs to Celery workers through a broker instead of executing them in-process.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Celery-backed workflow execution for Toil WES. Requires shared storage accessible by both server and workers."
+        },
+        "replicaCount": {
+          "type": "integer",
+          "description": "Number of Celery worker replicas to run for Toil WES.",
+          "minimum": 1
+        },
+        "brokerUrl": {
+          "type": "string",
+          "description": "External Celery broker URL; mutually exclusive with brokerSecret.name."
+        },
+        "resultBackend": {
+          "type": "string",
+          "description": "Celery result backend used by Toil WES to query task liveness/status. Defaults to rpc:// so the broker is also used for result metadata."
+        },
+        "workerLogLevel": {
+          "type": "string",
+          "description": "Celery worker log level (for example: INFO, DEBUG, WARNING)."
+        },
+        "brokerSecret": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "awsRegion": {
+      "type": "string",
+      "description": "AWS region value required by aws:<region>:<prefix> locator syntax (can be synthetic when using S3-compatible backends)."
+    },
+    "batchSystem": {
+      "type": "string",
+      "description": "Toil batch system backend (for example: kubernetes, singleMachine, mesos, slurm)."
+    },
+    "workDir": {
+      "type": "string",
+      "description": "Working directory used by the Toil WES server.",
+      "pattern": "^/"
+    },
+    "stateStore": {
+      "type": "string",
+      "description": "Path to the Toil WES state store directory.",
+      "pattern": "^/"
+    },
+    "sharedStorage": {
+      "type": "object",
+      "description": "Shared RWX storage used by the Toil WES server and Celery workers. Required when Celery mode is enabled so both pods see the same workDir and stateStore.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Mount shared storage for Toil WES."
+        },
+        "create": {
+          "type": "boolean",
+          "description": "Create a dedicated PVC for Toil WES shared storage. If false, existingClaim must be set."
+        },
+        "existingClaim": {
+          "type": "string",
+          "description": "Existing PVC name to use for Toil WES shared storage."
+        },
+        "mountPath": {
+          "type": "string",
+          "description": "Mount path for shared storage in the server and Celery worker containers. Should match the parent directory of workDir and stateStore.",
+          "pattern": "^/"
+        },
+        "accessMode": {
+          "type": "string",
+          "description": "PVC access mode for shared storage (typically ReadWriteMany for multiple pods).",
+          "enum": [
+            "ReadWriteOnce",
+            "ReadWriteMany",
+            "ReadWriteOncePod"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "description": "Requested PVC size for shared storage."
+        },
+        "storageClass": {
+          "type": "string",
+          "description": "StorageClass for the shared PVC. Empty string uses the cluster default."
+        }
+      }
+    },
+    "privileged": {
+      "type": "boolean",
+      "description": "Enable privileged mode for Kubernetes worker pods launched by Toil (mapped to --kubernetesPrivileged and TOIL_KUBERNETES_PRIVILEGED)."
+    },
+    "hostPath": {
+      "type": "string",
+      "description": "Explicit hostPath passed to Toil workers through TOIL_KUBERNETES_HOST_PATH. Takes precedence over nfsMount.nodeMountPath."
+    },
+    "nfsMount": {
+      "type": "object",
+      "description": "Node-level NFS/EFS mount configuration used to provide a hostPath for Toil workers.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the DaemonSet that mounts the NFS/EFS share on each Kubernetes node."
+        },
+        "server": {
+          "type": "string",
+          "description": "NFS server hostname/IP or EFS DNS endpoint."
+        },
+        "path": {
+          "type": "string",
+          "description": "Exported NFS path to mount from the server."
+        },
+        "nodeMountPath": {
+          "type": "string",
+          "description": "Path where the share is mounted on each Kubernetes node. Used as TOIL_KUBERNETES_HOST_PATH when hostPath is empty."
+        },
+        "mountOptions": {
+          "type": "array",
+          "description": "NFS mount options used by the node-level mount DaemonSet and the static NFS PV.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "image": {
+          "type": "object",
+          "description": "Container image used by the node-level NFS mount DaemonSet.",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Image repository for the node-level mount helper."
+            },
+            "tag": {
+              "type": "string",
+              "description": "Image tag for the node-level mount helper."
+            },
+            "pullPolicy": {
+              "type": "string",
+              "description": "Image pull policy for the node-level mount helper."
+            }
+          }
+        }
+      }
+    },
+    "enable_cache": {
+      "type": "boolean",
+      "description": "Enable shared Singularity/Apptainer cache environment variables for Toil workers."
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "pullPolicy": {
+          "type": "string"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "s3": {
+      "type": "object",
+      "description": "S3-compatible endpoint configuration used by Toil AWS job store (e.g., MinIO/Ceph).",
+      "properties": {
+        "realaws": {
+          "type": "boolean"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "useSsl": {
+          "type": "boolean"
+        },
+        "credentialsSecret": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "accessKeyKey": {
+              "type": "string"
+            },
+            "secretKeyKey": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "description": "Additional environment variables for the Toil WES container.",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "resolverOptions": {
+      "type": "string",
+      "description": "DNS resolver options propagated to Toil workers via RES_OPTIONS (for example: ndots:1)."
+    },
+    "resources": {
+      "type": "object",
+      "description": "Default and maximum resource values used by Toil jobs.",
+      "properties": {
+        "defaultMemory": {
+          "type": "string",
+          "description": "Default memory allocated to jobs when not explicitly set (for example: 8Gi)."
+        },
+        "defaultDisk": {
+          "type": "string",
+          "description": "Default disk allocated to jobs when not explicitly set (for example: 16Gi)."
+        },
+        "maxMemory": {
+          "type": "string",
+          "description": "Optional maximum memory allowed for jobs. Empty string means no explicit cap."
+        },
+        "maxDisk": {
+          "type": "string",
+          "description": "Optional maximum disk allowed for jobs. Empty string means no explicit cap."
+        },
+        "requests": {
+          "type": "object"
+        },
+        "limits": {
+          "type": "object"
+        }
+      }
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean"
+        }
+      }
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "global": {
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false
+}

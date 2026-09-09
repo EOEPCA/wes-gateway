@@ -1,0 +1,23 @@
+{{- if and .Values.enabled .Values.sharedStorage.enabled .Values.sharedStorage.create -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "toil-wes.claimName" . }}
+  labels:
+    {{- include "toil-wes.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.sharedStorage.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedStorage.size }}
+  {{- if ne .Values.sharedStorage.storageClass "" }}
+  storageClassName: {{ .Values.sharedStorage.storageClass | quote }}
+  {{- else if .Values.nfsMount.enabled }}
+  # Static binding to the NFS PV created by nfs-pv.yaml
+  storageClassName: ""
+  selector:
+    matchLabels:
+      toil-wes/pv-binding: {{ printf "%s/%s" .Release.Namespace (include "toil-wes.fullname" .) | sha256sum | trunc 63 }}
+  {{- end }}
+{{- end }}

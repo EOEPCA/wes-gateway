@@ -1,0 +1,37 @@
+# SeaweedFS master + volume + filer + authenticated S3 gateway.
+# null storageClass lets Kubernetes select its default StorageClass.
+master:
+  replicas: 1
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: standard
+  logs:
+    type: emptyDir
+volume:
+  replicas: 1
+  dataDirs:
+    - name: data1
+      type: persistentVolumeClaim
+      size: 20Gi
+      storageClass: standard
+      maxVolumes: 16
+  logs:
+    type: emptyDir
+  resizeHook:
+    enabled: false
+filer:
+  replicas: 1
+  data:
+    type: persistentVolumeClaim
+    size: 2Gi
+    storageClass: standard
+  logs:
+    type: emptyDir
+s3:
+  enabled: true
+  replicas: 1
+  enableAuth: true
+  existingConfigSecret: toil-s3
+  logs:
+    type: emptyDir

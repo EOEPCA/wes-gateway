@@ -1,0 +1,5 @@
+apiVersion: v2
+name: toil-bootstrap
+version: 0.1.0
+type: application
+description: Shared credentials for the local Toil WES development stack

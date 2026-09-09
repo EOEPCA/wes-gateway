@@ -1,0 +1,15 @@
+apiVersion: v2
+name: toil-wes
+description: Toil Workflow Execution Service with optional Celery workers and shared NFS storage
+type: application
+version: 0.1.0
+appVersion: "9.4.1"
+keywords:
+  - toil
+  - wes
+  - cwl
+  - workflows
+sources:
+  - https://github.com/ZOO-Project/charts
+annotations:
+  artifacthub.io/license: Apache-2.0

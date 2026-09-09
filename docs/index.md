@@ -1,21 +1,20 @@
 # WES Gateway
 
-The gateway exposes registered WES services under `/wes/v1/{namespace}`. It forwards
-workflow execution requests to Toil and stores durable namespace/backend associations
-for each gateway run ID. The included registry points to the two `toil-bootstrap`
-tenants. Skaffold builds the image and installs the Helm chart in
-`charts/wes-gateway`, which creates a Deployment, Service, ConfigMap and metadata PVC.
+Deploy the gateway to give workflow users a namespaced HTTP endpoint for Toil WES
+and other registered WES services. These guides are for people deploying and
+operating the gateway and submitting workflows through it.
 
-Start with [deploying the gateway with Toil WES](how-to-guides/deploy-with-toil.md), then
-[run a workflow with curl](tutorials/submit-and-monitor-cwl.md).
-To extend a running installation, see [Add additional backends](how-to-guides/add-backends.md).
-The [API reference](reference/api.md) describes public routes, multipart fields,
-namespace pagination, and errors. The running service publishes `/openapi.json`
-and `/docs`; the generated upstream HTML is a schema reference only.
+Choose a section according to what you need:
 
-A local gateway endpoint is `http://localhost:8090/wes/v1/tenant-a`. Toil's internal
-endpoint remains `/ga4gh/wes/v1`. Use namespaced `/service-info` to discover the
-backend's actual supported WES and workflow versions.
+| Section | Purpose | Start here |
+| --- | --- | --- |
+| Tutorials | Learn by completing a guided example | [Run your first workflow](tutorials/submit-and-monitor-cwl.md) |
+| How-to guides | Accomplish a deployment or operational task | [Deploy with Toil WES](how-to-guides/deploy-with-toil.md) |
+| Reference | Look up settings, defaults, routes, and errors | [Configuration](reference/configuration.md) · [API](reference/api.md) |
+| Explanation | Understand routing, execution, and persistence | [Gateway and execution backends](explanation/architecture.md) |
 
-See the [architecture](explanation/architecture.md) for ownership, persistence,
-and recovery. Identity-based authentication/authorization is supplied separately.
+For a new installation, [deploy the complete stack with Skaffold](how-to-guides/deploy-stack-with-skaffold.md),
+or deploy the gateway with an existing Toil service. Then follow the tutorial to
+submit a workflow. For an existing installation, see [Add additional backends](how-to-guides/add-backends.md),
+[Configure storage and backend credentials](how-to-guides/configure-backends.md), or
+[Troubleshoot deployment and runs](how-to-guides/troubleshoot.md).

@@ -1,0 +1,141 @@
+{{- if .Values.enabled -}}
+{{- if and .Values.celery.enabled (not .Values.sharedStorage.enabled) -}}
+{{- fail "celery.enabled requires sharedStorage.enabled so the WES server and Celery workers share workDir/stateStore" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "toil-wes.fullname" . }}
+  labels:
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "toil-wes.fullname" . }}
+    app.kubernetes.io/instance: {{ include "toil-wes.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "toil-wes.fullname" . }}
+      app.kubernetes.io/instance: {{ include "toil-wes.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "toil-wes.fullname" . }}
+        app.kubernetes.io/instance: {{ include "toil-wes.fullname" . }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "toil-wes.serviceAccountName" . }}
+      containers:
+        - name: toil-wes
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -lc
+          args:
+            - |
+              set -eu
+              python - <<'PY'
+                {{ tpl (.Files.Get "files/toil/wes_runtime_patch.py") . | nindent 14 }}
+              PY
+
+              # Share image cache across workers to reduce concurrent pull/build churn.
+              mkdir -p {{ .Values.workDir | default "/workflows" }}/singularity-cache
+
+              export PYTHONPATH="/tmp:${PYTHONPATH:-}"
+              exec toil server \
+                --host=0.0.0.0 \
+                --port=8080 \
+                {{- if not .Values.celery.enabled }}
+                --bypass_celery \
+                {{- end }}
+                --work_dir={{ .Values.workDir | default "/workflows" }} \
+                --state_store={{ .Values.stateStore | default "/workflows/state_store" }} \
+                --opt=--batchSystem={{ .Values.batchSystem | default "kubernetes" }} \
+                --opt=--logInfo \
+                --opt=--defaultMemory={{ .Values.resources.defaultMemory | quote }} \
+                --opt=--defaultDisk={{ .Values.resources.defaultDisk | quote }} \
+                {{- if .Values.resources.maxMemory }}
+                --opt=--maxMemory={{ .Values.resources.maxMemory | quote }} \
+                {{- end }}
+                {{- if .Values.resources.maxDisk }}
+                --opt=--maxDisk={{ .Values.resources.maxDisk | quote }} \
+                {{- end }}
+                --opt=--kubernetesOwner={{ include "toil-wes.fullname" . }} \
+                --opt=--kubernetesPrivileged={{ ternary "True" "False" .Values.privileged }} \
+                --opt=--kubernetesServiceAccount={{ include "toil-wes.serviceAccountName" . }} \
+                {{- if .Values.s3.credentialsSecret.name }}
+                --opt=--setEnv=AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+                --opt=--setEnv=AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+                {{- end }}
+                --opt=--setEnv=AWS_DEFAULT_REGION={{ .Values.awsRegion | default "us-east-1" }} \
+                {{- if .Values.s3.host }}
+                --opt=--setEnv=AWS_ENDPOINT_URL={{ ternary "https" "http" .Values.s3.useSsl }}://{{ .Values.s3.host }}:{{ .Values.s3.port }} \
+                --opt=--setEnv=BOTO3_ENDPOINT_URL={{ ternary "https" "http" .Values.s3.useSsl }}://{{ .Values.s3.host }}:{{ .Values.s3.port }} \
+                {{- end }}
+                --opt=--setEnv=RES_OPTIONS={{ .Values.resolverOptions }} \
+                --opt=--setEnv=AWS_S3_ADDRESSING_STYLE={{ get .Values.env "AWS_S3_ADDRESSING_STYLE" | default "path" }} \
+                {{- if .Values.s3.host }}
+                --opt=--setEnv=TOIL_S3_HOST={{ .Values.s3.host }} \
+                --opt=--setEnv=TOIL_S3_PORT={{ .Values.s3.port }} \
+                --opt=--setEnv=TOIL_S3_USE_SSL={{ ternary "True" "False" .Values.s3.useSsl }} \
+                {{- end }}
+                {{- if .Values.s3.credentialsSecret.name }}
+                --opt=--setEnv=TOIL_AWS_SECRET_NAME={{ .Values.s3.credentialsSecret.name }} \
+                {{- end }}
+                --opt=--setEnv=TOIL_KUBERNETES_OWNER={{ include "toil-wes.fullname" . }} \
+                --opt=--setEnv=TOIL_KUBERNETES_PRIVILEGED={{ ternary "True" "False" .Values.privileged }} \
+                {{- /* explicit hostPath > nodeMountPath NFS > nothing */}}
+                {{- $hostPath := .Values.hostPath }}
+                {{- if and (not $hostPath) .Values.nfsMount.enabled }}
+                {{- $hostPath = .Values.nfsMount.nodeMountPath }}
+                {{- end }}
+                {{- if $hostPath }}
+                --opt=--setEnv=TOIL_KUBERNETES_HOST_PATH={{ $hostPath }} \
+                {{- end }}
+                {{- if .Values.enable_cache }}
+                --opt=--setEnv=CWL_SINGULARITY_CACHE={{ .Values.workDir | default "/workflows" }}/singularity-cache \
+                --opt=--setEnv=SINGULARITY_CACHEDIR={{ .Values.workDir | default "/workflows" }}/singularity-cache \
+                {{- end}}
+                --opt=--setEnv=SINGULARITY_TMPDIR=/tmp \
+                --opt=--setEnv=APPTAINER_TMPDIR=/tmp
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            {{- include "toil-wes.env" . | nindent 12 }}
+          {{- $k8sResources := pick .Values.resources "requests" "limits" }}
+          {{- if gt (len $k8sResources) 0 }}
+          resources:
+            {{- toYaml $k8sResources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.sharedStorage.enabled }}
+          volumeMounts:
+            - name: toil-wes-shared
+              mountPath: {{ .Values.sharedStorage.mountPath | quote }}
+          {{- end }}
+      {{- if .Values.sharedStorage.enabled }}
+      volumes:
+        - name: toil-wes-shared
+          persistentVolumeClaim:
+            claimName: {{ if .Values.sharedStorage.create }}{{ include "toil-wes.claimName" . }}{{ else }}{{ .Values.sharedStorage.existingClaim }}{{ end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

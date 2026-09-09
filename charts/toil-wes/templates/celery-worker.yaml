@@ -1,0 +1,70 @@
+{{- if and .Values.enabled .Values.celery.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "toil-wes.workerName" . }}
+  labels:
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "toil-wes.workerName" . }}
+    app.kubernetes.io/instance: {{ include "toil-wes.workerName" . }}
+spec:
+  replicas: {{ .Values.celery.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "toil-wes.workerName" . }}
+      app.kubernetes.io/instance: {{ include "toil-wes.workerName" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "toil-wes.workerName" . }}
+        app.kubernetes.io/instance: {{ include "toil-wes.workerName" . }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "toil-wes.serviceAccountName" . }}
+      containers:
+        - name: toil-wes-celery
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -lc
+          args:
+            - |
+              set -eu
+              python - <<'PY'
+                {{ tpl (.Files.Get "files/toil/celery_worker_runtime_patch.py") . | nindent 14 }}
+              PY
+              exec celery -A toil.server.celery_app worker --loglevel={{ .Values.celery.workerLogLevel | default "INFO" }}
+          env:
+            {{- include "toil-wes.env" . | nindent 12 }}
+          {{- $k8sResources := pick .Values.resources "requests" "limits" }}
+          {{- if gt (len $k8sResources) 0 }}
+          resources:
+            {{- toYaml $k8sResources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: toil-wes-shared
+              mountPath: {{ .Values.sharedStorage.mountPath | quote }}
+      volumes:
+        - name: toil-wes-shared
+          persistentVolumeClaim:
+            claimName: {{ if .Values.sharedStorage.create }}{{ include "toil-wes.claimName" . }}{{ else }}{{ .Values.sharedStorage.existingClaim }}{{ end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

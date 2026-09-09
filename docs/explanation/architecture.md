@@ -1,41 +1,76 @@
-# Architecture
+# Gateway and execution backends
 
-Clients call `/wes/v1/{namespace}` on the gateway. A validated declarative registry
-maps the logical namespace to a backend WES HTTP API. Toil handles execution,
-Celery, Kubernetes jobs, and workflow storage in its own deployment.
+The gateway provides a common HTTP entry point for workflow submission and
+monitoring. Execution remains the responsibility of each registered WES backend.
+This separation lets an installation expose several execution environments without
+requiring workflow users to know their internal service addresses.
 
-![Helm deployment and backend connections](../diagrams/out/overall.svg)
+## Deployment boundaries
 
-The gateway stores a durable record before submission, forwards multipart workflow
-fields and attachments, and returns a gateway run ID. Subsequent status, detail,
-cancellation, task and artifact requests resolve that ID within its namespace and
-use the original backend. Reserved request tags carry the namespace association
-and support recovery after an ambiguous submission. Database-backed pagination
-exposes only gateway-owned runs, even when multiple namespaces share a backend.
+![Gateway deployment and backend connections](../diagrams/out/overall.svg)
 
-![Submission, namespace ownership and listing sequence](../diagrams/out/sequence.svg)
+The gateway Helm release contains the API service, backend configuration, and
+access to a metadata database. Toil is a separate deployment with its own workers,
+Kubernetes jobs, and workflow storage. Adding a gateway backend registration makes
+an existing WES service reachable; it does not provision its execution resources.
 
-The gateway preserves backend WES JSON and meaningful error statuses. In particular,
-Toil 9.4.1 reports WES 1.0 service metadata, which is not forced through the generated
-1.1 response models. `/service-info` reports the backend's actual capabilities, with
-potentially sensitive `--setEnv` defaults removed. Task endpoints forward backend
-support or errors; the gateway does not invent task data for unsupported routes.
+The gateway's readiness check covers its configuration and metadata storage.
+A backend can still be unavailable while the gateway is ready. A namespaced
+`/service-info` request checks the route to that backend; a completed workflow
+also demonstrates that its execution infrastructure works.
 
-Run records use SQLite in the single-replica development deployment and can use
-PostgreSQL for shared metadata across replicas. Stable backend identities cannot
-be silently repointed while recorded runs exist. The gateway never retries run
-submission or cancellation automatically.
+## Logical namespaces and routing
 
-HTTP logs from the backend are exposed through stored, opaque, run-scoped artifact
-links. Explicitly configured S3 outputs can be streamed through the same routes.
-This preserves access through the gateway without accepting arbitrary fetch URLs.
+A logical namespace in `/wes/v1/{namespace}` selects a backend through the
+registry. Its name need not match a Kubernetes namespace. Multiple logical
+namespaces can share one backend, or each can select a separate deployment.
 
-Implementation modules are `config.py` (registry validation), `backend.py` (HTTP
-transport), `store.py` (durable metadata), `main.py` (routing), `artifacts.py`
-(retrieval), and `reconcile.py` (operator recovery). `models.py` remains the upstream
-schema model reference. Skeleton generation writes to `generated/`, so it cannot
-overwrite handwritten gateway implementation.
+A submitted run belongs to the logical namespace used at submission. Listing and
+retrieving runs respects that association. Namespace routing does not provide
+caller authentication or separate execution queues. The deployment's external
+access layer must enforce who may use each namespace.
 
-See [configuration and operation](../how-to-guides/configure-backends.md) for
-configuration, persistence, recovery, and deployment limits. Identity-based
-OIDC/JWT authorization is not yet implemented in this application.
+## Run identity and persistence
+
+![Submission and namespace ownership](../diagrams/out/sequence.svg)
+
+The gateway records a submission before forwarding it and returns its own run ID.
+Later requests use that ID to find the original backend run. Consequently, a
+namespace's listing contains runs recorded in the gateway's database; it does not
+include workflows submitted directly to Toil.
+
+Changing a namespace's backend mapping affects future submissions. Existing runs
+still use their recorded backend, so that backend's identity and address must
+remain available. Removing a logical namespace makes its run routes inaccessible.
+
+The database is therefore part of the installation's durable state. SQLite on a
+persistent volume supports a single gateway replica. PostgreSQL supports shared
+metadata across replicas. Losing the database loses the associations required to
+access runs through the gateway, even if the backend still holds those runs.
+
+## Submission uncertainty and cancellation
+
+A connection can fail after the backend accepts a workflow but before the gateway
+receives its run ID. Repeating the submission could start a second workflow.
+The gateway keeps the uncertain record, exposes `UNKNOWN`, and uses reserved tags
+to support [reconciliation](../how-to-guides/configure-backends.md#reconcile-an-uncertain-submission).
+It does not automatically retry submission or cancellation.
+
+Cancellation is asynchronous. An accepted cancellation request can leave a run
+in `CANCELING` while the backend stops execution. Only a subsequent backend state
+confirms that the run reached `CANCELED`.
+
+## Backend capabilities and artifacts
+
+Each namespace's `/service-info` describes its backend's supported WES and workflow
+versions. Registering a service does not add workflow types or task endpoints that
+it lacks. The gateway returns the backend's states and supported response data.
+
+Supported HTTP logs and explicitly configured S3 outputs are exposed through
+stored gateway artifact URLs associated with the run. Other output locations
+remain metadata. This allows clients to retrieve supported artifacts through the
+gateway while workflow storage remains with the backend.
+
+For deployment steps, see [Deploy with Toil WES](../how-to-guides/deploy-with-toil.md).
+For exact settings and route behavior, use the [configuration](../reference/configuration.md)
+and [API](../reference/api.md) references.

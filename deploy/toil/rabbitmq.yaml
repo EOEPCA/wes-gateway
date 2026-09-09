@@ -1,0 +1,29 @@
+fullnameOverride: rabbitmq
+replicaCount: 1
+# The pinned Toil/Celery stack declares transient non-exclusive queues.
+# RabbitMQ 4.3+ requires this explicit compatibility setting.
+customConfig: |
+  deprecated_features.permit.transient_nonexcl_queues = true
+  definitions.import_backend = local_filesystem
+  definitions.local.path = /etc/rabbitmq/tenant-definitions/definitions.json
+extraSecrets:
+  - name: toil-rabbitmq-definitions
+    mountPath: /etc/rabbitmq/tenant-definitions
+authentication:
+  existingSecret: toil-rabbitmq
+  user:
+    secretKey: username
+  password:
+    secretKey: password
+  erlangCookie:
+    secretKey: erlang-cookie
+storage:
+  requestedSize: 2Gi
+managementPlugin:
+  enabled: true
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi

@@ -1,0 +1,82 @@
+# Standalone Toil WES. See README.md and examples/ for storage and Celery setup.
+enabled: true
+replicaCount: 1
+celery:
+  enabled: false
+  replicaCount: 1
+  brokerUrl: ''
+  resultBackend: rpc://
+  workerLogLevel: INFO
+  brokerSecret:
+    name: ''
+    key: broker-url
+awsRegion: us-east-1
+batchSystem: kubernetes
+workDir: /workflows
+stateStore: /workflows/state_store
+sharedStorage:
+  enabled: false
+  create: true
+  existingClaim: ''
+  mountPath: /workflows
+  accessMode: ReadWriteMany
+  size: 20Gi
+  storageClass: ''
+privileged: true
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+hostPath: ''
+nfsMount:
+  enabled: false
+  server: ''
+  path: /
+  nodeMountPath: /mnt/toil-shared
+  mountOptions:
+  - nfsvers=4.1
+  - rsize=1048576
+  - wsize=1048576
+  - hard
+  - timeo=600
+  - retrans=2
+  image:
+    repository: alpine
+    tag: '3.21'
+    pullPolicy: IfNotPresent
+enable_cache: false
+image:
+  repository: quay.io/ucsc_cgl/toil
+  tag: 9.4.1-c6a39f2c827899f9a1dd0018ca2b72c675120096-py3.13
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8080
+s3:
+  realaws: true
+  host: ''
+  port: '443'
+  useSsl: true
+  credentialsSecret:
+    name: ''
+    accessKeyKey: AWS_ACCESS_KEY_ID
+    secretKeyKey: AWS_SECRET_ACCESS_KEY
+resolverOptions: ndots:1
+resources:
+  defaultMemory: 8Gi
+  defaultDisk: 16Gi
+  maxMemory: ''
+  maxDisk: ''
+env: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+rbac:
+  create: true
+nameOverride: ''
+fullnameOverride: ''
+# Existing registry Secrets in the release namespace, used by WES, Celery,
+# and the chart-created ServiceAccount for Toil worker pod image pulls.
+# When serviceAccount.create is false, configure its pull Secrets separately.
+imagePullSecrets: []
+#  - name: registry-credentials

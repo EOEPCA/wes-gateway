@@ -1,8 +1,7 @@
 # Add additional WES backends
 
 Add a backend entry and a logical namespace mapping to the gateway registry, then
-apply the configuration. No new gateway route code or registration API call is
-needed for a compatible WES HTTP service.
+apply the configuration to make a compatible WES HTTP service available to clients.
 
 This guide assumes the gateway is already deployed with Toil. For initial setup,
 see [Deploy with Toil WES](deploy-with-toil.md).
@@ -26,9 +25,10 @@ in a registry mounted inside Kubernetes.
 
 ## 2. Extend the registry without removing existing entries
 
-Skaffold reads `config/backends.yaml`. Keep its existing settings, backend IDs,
-and namespace mappings, and add the new entries. For the repository's default
-two-tenant registry, adding Toil tenant C looks like this:
+Edit the complete registry file used for your Helm deployment. The commands below
+use `config/backends.yaml`; substitute your registry file path if different. Keep
+all existing settings, backend IDs, and namespace mappings. For an installation
+with two Toil backends, adding a third looks like this:
 
 ```yaml
 version: 1
@@ -107,9 +107,8 @@ starts. Keep tokens out of registry URLs. Preserve existing `extraEnv` entries:
 Helm replaces lists rather than appending to them. The gateway fails startup if a
 referenced credential environment variable is missing.
 
-If using Skaffold, add the Helm values file containing `extraEnv` to the release's
-`valuesFiles` in `skaffold.yaml`. For direct Helm, pass it with `--values` during
-the upgrade below. See [configuration options](configure-backends.md#registry-contract)
+Pass the Helm values file containing `extraEnv` with `--values` during the upgrade
+below. See [configuration options](../reference/configuration.md#registry)
 for TLS, timeouts, and backend-specific S3 artifact access. Client authorization
 headers are not automatically forwarded to backends.
 
@@ -121,27 +120,11 @@ From the repository root, validate the chart with the full updated registry:
 helm lint charts/wes-gateway --set-file backendConfig=config/backends.yaml
 ```
 
-For full application-level registry validation, use the project's installed Python
-environment. Set any referenced credential environment variables first:
+Helm validates the chart and registry structure. At startup the gateway also checks
+credential references and compatibility with stored backend identities. Inspect
+the startup logs after deployment if the release fails to become ready.
 
-```sh
-.venv/bin/python -c \
-  'from wes_api_gateway.config import load_registry; load_registry("config/backends.yaml"); print("Registry valid")'
-```
-
-This checks configuration and credential references, not backend connectivity or
-compatibility with existing database bindings. Those bindings are checked when the
-gateway starts. If you have not installed the Python environment, follow the
-[local tooling instructions](configure-backends.md#run-the-gateway-as-a-local-python-process) or inspect
-the application startup logs after deployment.
-
-Choose the deployment method already managing the release:
-
-- **Skaffold dev:** save `config/backends.yaml` and wait for Skaffold to redeploy.
-  Inspect its output for deployment completion. Do not also perform a manual Helm
-  upgrade while Skaffold is managing the same release.
-- **Direct Helm:** update the existing release, preserving its current image and
-  other Helm values:
+Update the existing Helm release, preserving its current image and other values:
 
 ```sh
 helm upgrade wes-gateway charts/wes-gateway \
@@ -158,9 +141,7 @@ values instead, clear any previous `backendConfig` override and supply a complet
 reviewed registry, accounting for Helm's recursive map merging.
 
 The changed registry updates the Deployment's checksum annotation and rolls the
-pod. There is no in-process hot reload. For a local Python gateway instead of
-Helm, edit the file named by `WES_BACKENDS_CONFIG` and restart that process, keeping
-its existing `WES_DATABASE_URL`.
+pod. Configuration changes take effect when the new pod starts.
 
 ```sh
 kubectl rollout status deployment/wes-gateway -n wes-gateway --timeout=180s
@@ -186,20 +167,12 @@ curl --fail-with-body -sS --max-time 60 \
 The new namespace initially lists no gateway-owned runs, even if that backend has
 runs submitted directly to it. A successful service-info request proves HTTP
 routing, not workflow execution. For the Toil example, submit and verify Hello
-World through the new namespace using the existing runner:
-
-```sh
-.venv/bin/python examples/run_workflow.py \
-  "$WES_URL" examples/cwl/hello.cwl examples/cwl/hello.inputs.json \
-  --expected examples/cwl/hello.expected.json \
-  --evidence output/research-hello
-```
-
-Or follow the [curl tutorial](../tutorials/submit-and-monitor-cwl.md), setting
+World through the new namespace by following the
+[curl tutorial](../tutorials/submit-and-monitor-cwl.md), setting
 `NAMESPACE=research` when preparing the terminal. For another WES implementation,
 first select a workflow type/version reported by that backend. Check status,
 outputs and available logs, plus an existing run's status in its original namespace.
-See [routing and failed-run troubleshooting](deploy-with-toil.md#troubleshooting)
+See [routing and failed-run troubleshooting](troubleshoot.md)
 if any of these checks fail.
 
 ## Existing runs, shared backends and replacement

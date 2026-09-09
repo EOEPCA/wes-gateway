@@ -1,0 +1,13 @@
+# Existing object storage; replace host and Secret name for your cluster.
+s3:
+  realaws: false
+  host: s3-service.zoo.svc.cluster.local
+  port: "9000"
+  useSsl: false
+  credentialsSecret:
+    name: s3-service
+    accessKeyKey: rootUser
+    secretKeyKey: rootPassword
+env:
+  TOIL_WES_JOB_STORE_TYPE: aws
+  AWS_S3_ADDRESSING_STYLE: path

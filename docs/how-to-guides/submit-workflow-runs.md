@@ -1,8 +1,8 @@
-# Submit Workflow Runs
+# Submit workflow runs
 
 Use `POST /runs` to create a workflow run. The request is `multipart/form-data` so the gateway can receive both WES metadata fields and optional workflow files.
 
-Run commands from the repository root. Each submission example creates a new run;
+Run commands from the directory containing your workflow files. Each submission example creates a new run;
 choose the one appropriate to your workflow. Set the namespace explicitly:
 
 ```sh
@@ -24,7 +24,7 @@ curl --fail-with-body -sS --max-time 60 "$WES_URL/service-info"
 Look at these fields:
 
 - `workflow_type_versions`: accepted workflow languages and versions, such as CWL or WDL.
-- `workflow_engine_versions`: workflow engines exposed by the deployment. For this gateway, execution is backed by Toil.
+- `workflow_engine_versions`: workflow engines exposed by the deployment. The selected namespace determines the backend.
 - `default_workflow_engine_parameters`: Toil or deployment defaults that are applied when a run starts.
 - `supported_filesystem_protocols`: URL schemes the service can read or write.
 
@@ -45,7 +45,7 @@ curl --fail-with-body -sS --max-time 60 --request POST "$WES_URL/runs" \
 
 ## Submit a Workflow by URL
 
-Use an absolute URL when the Toil runner can fetch the workflow directly:
+Use an absolute URL when the backend can fetch the workflow directly:
 
 ```sh
 curl --fail-with-body -sS --max-time 60 --request POST "$WES_URL/runs" \
@@ -115,4 +115,34 @@ The response body contains `run_id`. Store it with your client-side job metadata
 `workflow_params` is required, even when its value is `{}`. JSON objects in tags
 and engine parameters must map strings to strings. A `workflow_engine_version`
 requires `workflow_engine`. Do not automatically retry submission after a timeout;
-use [run recovery](configure-backends.md#namespace-ownership-and-run-recovery).
+use [run recovery](configure-backends.md#reconcile-an-uncertain-submission).
+
+## Run the supplied scatter workflow
+
+From the gateway distribution's root directory, submit the supplied CWL example
+to a namespace whose backend supports CWL v1.2:
+
+```sh
+mkdir -p output/scatter
+curl --fail-with-body -sS --max-time 60 --request POST "$WES_URL/runs" \
+  --form 'workflow_type=CWL' \
+  --form 'workflow_type_version=v1.2' \
+  --form 'workflow_url=scatter.cwl' \
+  --form 'workflow_attachment=@examples/cwl/scatter.cwl' \
+  --form 'workflow_params=<examples/cwl/scatter.inputs.json' \
+  --output output/scatter/submission.json
+RUN_ID=$(jq -er '.run_id' output/scatter/submission.json)
+```
+
+[Monitor the run](monitor-and-cancel-runs.md#check-status-and-retrieve-details)
+using this `RUN_ID`. Once it reaches `COMPLETE`, retrieve and check its output:
+
+```sh
+curl --fail-with-body -sS --max-time 60 "$WES_URL/runs/$RUN_ID" \
+  --output output/scatter/run.json
+jq -e --slurpfile expected examples/cwl/scatter.expected.json \
+  '.outputs == $expected[0]' output/scatter/run.json
+```
+
+A successful comparison prints `true`: the output contains the three expected
+greetings in order, including their trailing newlines.

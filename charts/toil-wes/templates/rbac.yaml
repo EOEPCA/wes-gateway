@@ -1,0 +1,54 @@
+{{- if and .Values.enabled .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "toil-wes.fullname" . }}
+  labels:
+    {{- include "toil-wes.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - pods/status
+      - configmaps
+      - secrets
+      - services
+      - persistentvolumeclaims
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "toil-wes.fullname" . }}
+  labels:
+    {{- include "toil-wes.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "toil-wes.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "toil-wes.fullname" . }}
+{{- end }}

@@ -1,0 +1,11 @@
+# Create this Secret in the release namespace with a full broker URL.
+celery:
+  enabled: true
+  brokerSecret:
+    name: toil-broker
+    key: broker-url
+sharedStorage:
+  enabled: true
+  create: false
+  existingClaim: toil-workflows
+  # The existing claim must support all server/worker pods (normally RWX).

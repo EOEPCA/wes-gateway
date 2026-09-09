@@ -1,0 +1,19 @@
+{{- if and .Values.rabbitmq.enabled .Values.rabbitmq.createDefinitions }}
+{{- $admin := .Values.rabbitmq.username }}
+{{- $users := list (dict "name" $admin "password" .Values.rabbitmq.password "tags" (list "administrator")) }}
+{{- $vhosts := list (dict "name" "/") }}
+{{- $permissions := list (dict "user" $admin "vhost" "/" "configure" ".*" "write" ".*" "read" ".*") }}
+{{- range $name, $tenant := .Values.rabbitmq.tenants }}
+{{- $users = append $users (dict "name" $tenant.username "password" $tenant.password "tags" (list)) }}
+{{- $vhosts = append $vhosts (dict "name" $name) }}
+{{- $permissions = append $permissions (dict "user" $tenant.username "vhost" $name "configure" ".*" "write" ".*" "read" ".*") }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: toil-rabbitmq-definitions
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  definitions.json: {{ dict "users" $users "vhosts" $vhosts "permissions" $permissions | toJson | quote }}
+{{- end }}

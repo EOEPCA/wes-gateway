@@ -1,0 +1,21 @@
+# Development credentials only. Keep these stable while reusing RabbitMQ data.
+s3:
+  enabled: true
+  accessKey: toil-dev
+  secretKey: toil-dev-s3-password
+rabbitmq:
+  enabled: true
+  # Select a tenant for client Secrets; empty selects the broker administrator.
+  tenant: ''
+  createDefinitions: false
+  tenants:
+    tenant-a:
+      username: tenant-a
+      password: tenant-a-dev-rabbit-password
+    tenant-b:
+      username: tenant-b
+      password: tenant-b-dev-rabbit-password
+  host: rabbitmq.rabbitmq.svc
+  username: toil
+  password: toil-dev-rabbit-password
+  erlangCookie: toil-dev-erlang-cookie-change-me

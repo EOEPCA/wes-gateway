@@ -70,21 +70,26 @@ markdown_extensions:
   - pymdownx.highlight:
       line_spans: __span
 
+exclude_docs: |
+  /c4/
+  /diagrams/src/
+
 nav:
   - Home: index.md
   - Tutorials:
-    - Run workflows with curl: tutorials/submit-and-monitor-cwl.md
+    - Run your first workflow: tutorials/submit-and-monitor-cwl.md
   - How-to guides:
+    - Deploy the complete stack with Skaffold: how-to-guides/deploy-stack-with-skaffold.md
     - Deploy with Toil WES: how-to-guides/deploy-with-toil.md
     - Add additional backends: how-to-guides/add-backends.md
-    - Configure backends: how-to-guides/configure-backends.md
+    - Configure storage and credentials: how-to-guides/configure-backends.md
     - Submit workflow runs: how-to-guides/submit-workflow-runs.md
     - Monitor and cancel runs: how-to-guides/monitor-and-cancel-runs.md
+    - Troubleshoot deployment and runs: how-to-guides/troubleshoot.md
   - Reference:
+    - Configuration: reference/configuration.md
     - API reference: reference/api.md
-    - Integration results: reference/integration-results.md
-    - Upstream WES schema (not gateway routes): c4/components/OpenAPI/apidoc.html
   - Explanation:
-    - Architecture: explanation/architecture.md
+    - Gateway and execution backends: explanation/architecture.md
 
 copyright: <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="Apache License, Version 2.0" /></a>

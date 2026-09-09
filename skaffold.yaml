@@ -1,4 +1,4 @@
-apiVersion: skaffold/v4beta9
+apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: wes-gateway
@@ -6,25 +6,107 @@ build:
   local:
     useDockerCLI: true
   artifacts:
-    - image: dev.local/eoepca/wes-gateway
-      context: .
-      docker:
-        dockerfile: Dockerfile
+  - image: dev.local/eoepca/wes-gateway
+    context: .
+    docker:
+      dockerfile: Dockerfile
 deploy:
   helm:
     releases:
-      - name: wes-gateway
-        chartPath: charts/wes-gateway
-        namespace: wes-gateway
-        createNamespace: true
-        setFiles:
-          backendConfig: config/backends.yaml
-        setValueTemplates:
-          image.ref: "{{.IMAGE_FULLY_QUALIFIED_dev_local_eoepca_wes_gateway}}"
-        wait: true
+    - name: tenant-a-bootstrap
+      chartPath: charts/toil-bootstrap
+      namespace: tenant-a
+      createNamespace: true
+      setValues:
+        rabbitmq.tenant: tenant-a
+      wait: true
+    - name: tenant-b-bootstrap
+      chartPath: charts/toil-bootstrap
+      namespace: tenant-b
+      createNamespace: true
+      setValues:
+        rabbitmq.tenant: tenant-b
+      wait: true
+    - name: seaweedfs-bootstrap
+      chartPath: charts/toil-bootstrap
+      namespace: seaweedfs
+      createNamespace: true
+      setValues:
+        rabbitmq.enabled: false
+      wait: true
+    - name: rabbitmq-bootstrap
+      chartPath: charts/toil-bootstrap
+      namespace: rabbitmq
+      createNamespace: true
+      setValues:
+        s3.enabled: false
+        rabbitmq.createDefinitions: true
+      wait: true
+    - name: seaweedfs
+      remoteChart: seaweedfs
+      repo: https://seaweedfs.github.io/seaweedfs/helm
+      version: 4.46.0
+      namespace: seaweedfs
+      createNamespace: true
+      valuesFiles:
+      - deploy/toil/seaweedfs.yaml
+      wait: true
+    - name: rabbitmq
+      remoteChart: rabbitmq
+      repo: https://groundhog2k.github.io/helm-charts
+      version: 2.3.8
+      namespace: rabbitmq
+      createNamespace: true
+      valuesFiles:
+      - deploy/toil/rabbitmq.yaml
+      wait: true
+    - name: tenant-a
+      chartPath: charts/toil-wes
+      namespace: tenant-a
+      createNamespace: true
+      valuesFiles:
+      - deploy/toil/toil-wes.yaml
+      wait: true
+    - name: tenant-b
+      chartPath: charts/toil-wes
+      namespace: tenant-b
+      createNamespace: true
+      valuesFiles:
+      - deploy/toil/toil-wes.yaml
+      wait: true
+    - name: wes-gateway
+      chartPath: charts/wes-gateway
+      namespace: wes-gateway
+      createNamespace: true
+      setFiles:
+        backendConfig: config/backends.yaml
+      setValueTemplates:
+        image.ref: '{{.IMAGE_FULLY_QUALIFIED_dev_local_eoepca_wes_gateway}}'
+      wait: true
+  statusCheckDeadlineSeconds: 600
 portForward:
-  - resourceType: service
-    resourceName: wes-gateway
-    namespace: wes-gateway
-    port: 8090
-    localPort: 8090
+- resourceType: service
+  resourceName: wes-gateway
+  namespace: wes-gateway
+  port: 8090
+  localPort: 8090
+- resourceType: service
+  resourceName: toil-wes
+  namespace: tenant-a
+  port: 8080
+  localPort: 8080
+- resourceType: service
+  resourceName: toil-wes
+  namespace: tenant-b
+  port: 8080
+  localPort: 8081
+- resourceType: service
+  resourceName: seaweedfs-s3
+  namespace: seaweedfs
+  port: 8333
+  localPort: 8333
+- resourceType: service
+  resourceName: rabbitmq
+  namespace: rabbitmq
+  port: 15672
+  localPort: 15672

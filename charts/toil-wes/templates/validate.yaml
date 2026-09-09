@@ -1,0 +1,28 @@
+{{- if .Values.enabled -}}
+{{- if and .Values.celery.enabled (not (or .Values.celery.brokerUrl .Values.celery.brokerSecret.name)) -}}
+{{- fail "celery.enabled requires celery.brokerUrl or celery.brokerSecret.name (external broker)" -}}
+{{- end -}}
+{{- if and .Values.celery.brokerUrl .Values.celery.brokerSecret.name -}}
+{{- fail "set only one of celery.brokerUrl and celery.brokerSecret.name" -}}
+{{- end -}}
+{{- if and (gt (int .Values.replicaCount) 1) (not .Values.celery.enabled) -}}
+{{- fail "replicaCount > 1 requires celery.enabled; bypass mode tracks tasks in the server process" -}}
+{{- end -}}
+{{- if .Values.sharedStorage.enabled -}}
+{{- if and (not .Values.sharedStorage.create) (not .Values.sharedStorage.existingClaim) -}}
+{{- fail "sharedStorage.existingClaim is required when sharedStorage.create is false" -}}
+{{- end -}}
+{{- $mount := trimSuffix "/" .Values.sharedStorage.mountPath -}}
+{{- range $path := list .Values.workDir .Values.stateStore -}}
+{{- if not (or (eq $mount $path) (hasPrefix (printf "%s/" $mount) $path)) -}}
+{{- fail "workDir and stateStore must be within sharedStorage.mountPath" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) -}}
+{{- fail "serviceAccount.name is required when serviceAccount.create is false" -}}
+{{- end -}}
+{{- if and (not .Values.s3.realaws) (not .Values.s3.host) -}}
+{{- fail "s3.host is required for an S3-compatible endpoint (s3.realaws=false)" -}}
+{{- end -}}
+{{- end -}}

@@ -64,7 +64,7 @@ fi
 ```
 
 Supported log/output locations become gateway artifact URLs. Other locations remain
-metadata only; see [artifact configuration](configure-backends.md#logs-and-output-files).
+metadata only; see [artifact configuration](configure-backends.md#enable-retrieval-of-s3-outputs).
 
 ## Task logs depend on the backend
 
@@ -96,10 +96,9 @@ curl --fail-with-body -sS --max-time 60 "$WES_URL/runs/$RUN_ID/status" | jq .
 ```
 
 Continue polling until `CANCELED` or another terminal state. A successful POST
-acknowledges the request; `CANCELING` is still in progress. The evaluated Toil stack
-completed cancellation of running workflows, while immediate queued cancellation
-could remain at `CANCELING`. Use the tutorial's sleep workflow for a repeatable
-running-cancellation check.
+acknowledges the request; `CANCELING` is still in progress. If the run remains in
+that state, inspect the backend and worker logs using the
+[troubleshooting guide](troubleshoot.md#cancellation-stays-in-canceling).
 
 An unresolved submission returns `409` for cancellation and task access until
-[operator reconciliation](configure-backends.md#namespace-ownership-and-run-recovery).
+[operator reconciliation](configure-backends.md#reconcile-an-uncertain-submission).

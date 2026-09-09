@@ -1,0 +1,117 @@
+{{- if and .Values.enabled .Values.nfsMount.enabled -}}
+{{- if not .Values.nfsMount.server -}}
+{{- fail "nfsMount.server is required when nfsMount.enabled is true" -}}
+{{- end -}}
+# DaemonSet that mounts the NFS/EFS share on every Kubernetes node.
+# This allows Toil worker pods to access the shared directory via hostPath
+# (TOIL_KUBERNETES_HOST_PATH = nfsMount.nodeMountPath).
+#
+# Prerequisite: nodes must have network access to the NFS/EFS server.
+# For AWS EFS, use the file system DNS endpoint (fs-xxxx.efs.<region>.amazonaws.com).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "toil-wes.mounterName" . }}
+  labels:
+    {{- include "toil-wes.labels" . | nindent 4 }}
+    app.kubernetes.io/component: toil-nfs-mounter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "toil-wes.mounterName" . }}
+      app.kubernetes.io/instance: {{ include "toil-wes.mounterName" . }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "toil-wes.mounterName" . }}
+        app.kubernetes.io/instance: {{ include "toil-wes.mounterName" . }}
+    spec:
+      # hostPID allows nsenter to operate in the mount namespace
+      # of the node init process (PID 1), which mounts NFS directly on the node.
+      hostPID: true
+      # Tolerate all taints to ensure the DaemonSet runs on all nodes
+      tolerations:
+        - operator: Exists
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: nfs-mount
+          image: "{{ .Values.nfsMount.image.repository }}:{{ .Values.nfsMount.image.tag }}"
+          imagePullPolicy: {{ .Values.nfsMount.image.pullPolicy }}
+          securityContext:
+            privileged: true
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              NFS_SERVER="{{ .Values.nfsMount.server }}"
+              NFS_PATH="{{ .Values.nfsMount.path }}"
+              MOUNT_POINT="{{ .Values.nfsMount.nodeMountPath }}"
+              MOUNT_OPTIONS="{{ .Values.nfsMount.mountOptions | join "," }}"
+
+              # Install nfs-utils in the Alpine container to provide mount.nfs
+              apk add --no-cache nfs-utils > /dev/null 2>&1
+
+              # Create the mount point on the host node via nsenter
+              nsenter --mount=/proc/1/ns/mnt -- mkdir -p "${MOUNT_POINT}"
+
+              # Mount the NFS share on the host node if it is not already mounted
+              if nsenter --mount=/proc/1/ns/mnt -- mountpoint -q "${MOUNT_POINT}"; then
+                echo "INFO: ${MOUNT_POINT} is already mounted on the node."
+              else
+                echo "INFO: Mounting ${NFS_SERVER}:${NFS_PATH} on ${MOUNT_POINT} (options: ${MOUNT_OPTIONS})"
+                nsenter --mount=/proc/1/ns/mnt -- mount \
+                  -t nfs \
+                  -o "${MOUNT_OPTIONS}" \
+                  "${NFS_SERVER}:${NFS_PATH}" \
+                  "${MOUNT_POINT}"
+                echo "INFO: Mount successful."
+              fi
+      containers:
+        - name: keepalive
+          image: "{{ .Values.nfsMount.image.repository }}:{{ .Values.nfsMount.image.tag }}"
+          imagePullPolicy: {{ .Values.nfsMount.image.pullPolicy }}
+          securityContext:
+            privileged: true
+          command:
+            - sh
+            - -c
+            - |
+              NFS_SERVER="{{ .Values.nfsMount.server }}"
+              NFS_PATH="{{ .Values.nfsMount.path }}"
+              MOUNT_POINT="{{ .Values.nfsMount.nodeMountPath }}"
+              MOUNT_OPTIONS="{{ .Values.nfsMount.mountOptions | join "," }}"
+
+              # Cleanly unmount when the pod is stopping
+              trap 'echo "INFO: Unmounting ${MOUNT_POINT}..."; \
+                    nsenter --mount=/proc/1/ns/mnt -- umount "${MOUNT_POINT}" 2>/dev/null || true; \
+                    exit 0' TERM INT
+
+              echo "INFO: NFS active: ${NFS_SERVER}:${NFS_PATH} -> ${MOUNT_POINT}"
+
+              # Monitoring loop: remount if the mount disappears
+              while true; do
+                if ! nsenter --mount=/proc/1/ns/mnt -- mountpoint -q "${MOUNT_POINT}"; then
+                  echo "WARN: Mount lost, attempting remount..."
+                  nsenter --mount=/proc/1/ns/mnt -- mount \
+                    -t nfs \
+                    -o "${MOUNT_OPTIONS}" \
+                    "${NFS_SERVER}:${NFS_PATH}" \
+                    "${MOUNT_POINT}" || echo "ERROR: Remount failed."
+                fi
+                sleep 60 &
+                wait $!
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+{{- end }}

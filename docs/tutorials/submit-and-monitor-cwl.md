@@ -1,17 +1,18 @@
-# Run a workflow through the gateway with curl
+# Run your first workflow with curl
 
 The WES Gateway is an HTTP API. In this tutorial you will submit a CWL workflow,
-monitor it, retrieve its output and logs, and cancel a separate running workflow.
+monitor it, and retrieve its output and logs.
 All requests go to the gateway; Toil executes the workflows behind it.
 
 ## 1. Prepare your terminal
 
-Keep `skaffold dev --port-forward` running in one terminal. Open another Bash
-terminal in the **wes-gateway repository root**. You need `curl` with
-`--fail-with-body` support and `jq` for reading JSON responses.
+Start with a gateway [deployed with Toil WES](../how-to-guides/deploy-with-toil.md)
+and a port-forward running at `http://localhost:8090`. You need Bash, `curl` with
+`--fail-with-body` support, and `jq`. Open a terminal in the gateway distribution's
+root directory so the supplied `examples/cwl/` files are available.
 
-Run all the following commands in that same Bash session. If you are using the
-optional local Python gateway on port 8091, change `GATEWAY_URL` accordingly:
+Run the commands in the same Bash session. If your gateway has a different URL
+or registered namespace, substitute those values below.
 
 ```bash
 set -euo pipefail
@@ -22,11 +23,10 @@ export WES_URL="$GATEWAY_URL/wes/v1/$NAMESPACE"
 mkdir -p output/curl-tutorial
 ```
 
-`tenant-a` and `tenant-b` are registered in `config/backends.yaml`. The namespace
-in the URL selects the backend. Use `/wes/v1/tenant-a`, including the namespace,
+The deployment guide registers `tenant-a`. The namespace in the URL selects the backend. Use `/wes/v1/tenant-a`, including the namespace,
 for gateway calls. Toil's internal `/ga4gh/wes/v1` address is not needed here.
 
-The examples use the local development endpoint. If an external access layer
+The examples use the port-forwarded gateway endpoint. If an external access layer
 protects your deployment, add its required authorization headers. The gateway
 itself does not authenticate callers.
 
@@ -40,8 +40,7 @@ curl --fail-with-body -sS --max-time 60 "$WES_URL/service-info" |
 ```
 
 Readiness returns `{"status":"ready"}`. Service information comes from the
-selected Toil backend: the evaluated deployment reports WES `1.0.0` and supports
-CWL `v1.2`. A successful service-info request confirms gateway-to-backend HTTP
+selected Toil backend. Check that it supports CWL `v1.2` before continuing. A successful service-info request confirms gateway-to-backend HTTP
 connectivity; the workflow submission below checks execution.
 
 Swagger UI is available at [http://localhost:8090/docs](http://localhost:8090/docs).
@@ -83,7 +82,7 @@ boundary automatically.
 The returned ID is owned by the gateway and associated with this namespace.
 Keep it for every subsequent call. A repeated `POST /runs` creates another run.
 If submission times out or returns an unknown-outcome error, inspect the saved
-response for `gateway_run_id` and follow [submission recovery](../how-to-guides/configure-backends.md#namespace-ownership-and-run-recovery)
+response for `gateway_run_id` and follow [submission recovery](../how-to-guides/configure-backends.md#reconcile-an-uncertain-submission)
 before submitting again.
 
 ## 4. Monitor execution
@@ -94,8 +93,8 @@ Read the current state once:
 curl --fail-with-body -sS --max-time 60 "$RUN_URL/status" | jq .
 ```
 
-Typical states are `QUEUED`, `RUNNING`, then `COMPLETE`. Define this polling
-function so you can also reuse it for the cancellation example:
+Typical states are `QUEUED`, `RUNNING`, then `COMPLETE`. Use this function to
+wait for completion:
 
 ```bash
 wait_for_state() (
@@ -167,117 +166,15 @@ done
 
 Use the URLs returned by the API; do not construct Toil log URLs yourself. Other
 workflows may produce File or Directory outputs. Their byte retrieval depends on
-the [configured artifact storage](../how-to-guides/configure-backends.md#logs-and-output-files).
+the [configured artifact storage](../how-to-guides/configure-backends.md#enable-retrieval-of-s3-outputs).
 The gateway can return inline `task_logs`; separate `/tasks` endpoints depend on
 backend support and are not required for this tutorial.
 
-## 6. List runs and check namespace isolation
+## What you have learned
 
-```bash
-curl --fail-with-body -sS --max-time 60 --get "$WES_URL/runs" \
-  --data-urlencode 'page_size=2' \
-  --output output/curl-tutorial/list.json
-jq . output/curl-tutorial/list.json
+You submitted a CWL file and inputs, saved the gateway run ID, waited for completion,
+and retrieved the greeting and available logs through the gateway.
 
-NEXT_PAGE_TOKEN=$(jq -r '.next_page_token // empty' output/curl-tutorial/list.json)
-if [[ -n "$NEXT_PAGE_TOKEN" ]]; then
-  curl --fail-with-body -sS --max-time 60 --get "$WES_URL/runs" \
-    --data-urlencode 'page_size=2' \
-    --data-urlencode "page_token=$NEXT_PAGE_TOKEN" | jq .
-fi
-```
-
-Results use the `workflows` key, not `runs`. Each entry has `run_id`, `state`, and
-`tags`; full outputs and logs require `GET /runs/{run_id}`. Only records in this
-gateway database and namespace are listed, oldest first. Therefore, `page_size=2`
-returns the first two records, which may not include the run you just submitted.
-Use the saved `$RUN_URL` to retrieve that run directly, or follow pagination.
-
-Runs submitted directly to Toil or through the earlier local gateway database
-will not appear in the Helm deployment's listing. An empty result is valid:
-`{"workflows":[],"next_page_token":""}`. States are refreshed on each request,
-and new submissions can appear on later pages; pagination is not a snapshot.
-Pagination tokens belong to the namespace that issued them; encode them with `--data-urlencode` when sending them back.
-
-The following requests intentionally return **404**. They omit `--fail-with-body`
-so you can inspect those expected errors without stopping the Bash session:
-
-```bash
-OTHER_NAMESPACE=tenant-b
-if [[ "$NAMESPACE" == tenant-b ]]; then OTHER_NAMESPACE=tenant-a; fi
-
-curl -sS --max-time 60 --write-out '\nHTTP %{http_code}\n' \
-  "$GATEWAY_URL/wes/v1/$OTHER_NAMESPACE/runs/$RUN_ID/status"
-
-curl -sS --max-time 60 --write-out '\nHTTP %{http_code}\n' \
-  "$GATEWAY_URL/wes/v1/not-registered/runs"
-```
-
-To execute in tenant B, set `NAMESPACE=tenant-b`, rebuild `WES_URL`, and submit a
-new run. An existing run ID remains associated with its original namespace.
-
-## 7. Cancel a running workflow
-
-Hello World finishes quickly, so submit the separate sleep workflow for this
-exercise. It normally sleeps for five minutes. Wait until it is `RUNNING` before
-sending the cancellation request; immediate queued cancellation in the evaluated
-Toil deployment can remain at `CANCELING`.
-
-```bash
-curl --fail-with-body -sS --max-time 60 \
-  --request POST "$WES_URL/runs" \
-  --form 'workflow_type=CWL' \
-  --form 'workflow_type_version=v1.2' \
-  --form 'workflow_url=cancel.cwl' \
-  --form 'workflow_attachment=@examples/cwl/cancel.cwl' \
-  --form 'workflow_params=<examples/cwl/cancel.inputs.json' \
-  --output output/curl-tutorial/cancel-submission.json
-
-CANCEL_RUN_ID=$(jq -er '.run_id | select(type == "string" and length > 0)' \
-  output/curl-tutorial/cancel-submission.json)
-CANCEL_RUN_URL="$WES_URL/runs/$CANCEL_RUN_ID"
-
-wait_for_state "$CANCEL_RUN_URL" RUNNING
-
-curl --fail-with-body -sS --max-time 60 \
-  --request POST "$CANCEL_RUN_URL/cancel" | jq .
-
-wait_for_state "$CANCEL_RUN_URL" CANCELED
-
-curl --fail-with-body -sS --max-time 60 "$CANCEL_RUN_URL" \
-  --output output/curl-tutorial/cancel-run.json
-```
-
-A successful cancellation POST means the request was accepted. Confirming
-`CANCELED` via the status endpoint verifies that cancellation completed.
-`CANCELING` is an intermediate state.
-
-## 8. Try the existing scatter workflow
-
-Submit `scatter.cwl` using the same multipart fields:
-
-```bash
-curl --fail-with-body -sS --max-time 60 \
-  --request POST "$WES_URL/runs" \
-  --form 'workflow_type=CWL' \
-  --form 'workflow_type_version=v1.2' \
-  --form 'workflow_url=scatter.cwl' \
-  --form 'workflow_attachment=@examples/cwl/scatter.cwl' \
-  --form 'workflow_params=<examples/cwl/scatter.inputs.json' \
-  --output output/curl-tutorial/scatter-submission.json
-
-SCATTER_RUN_ID=$(jq -er '.run_id | select(type == "string" and length > 0)' \
-  output/curl-tutorial/scatter-submission.json)
-SCATTER_RUN_URL="$WES_URL/runs/$SCATTER_RUN_ID"
-wait_for_state "$SCATTER_RUN_URL" COMPLETE
-
-curl --fail-with-body -sS --max-time 60 "$SCATTER_RUN_URL" \
-  --output output/curl-tutorial/scatter-run.json
-
-jq -e --slurpfile expected examples/cwl/scatter.expected.json \
-  '.outputs == $expected[0]' output/curl-tutorial/scatter-run.json
-```
-
-This checks the three greeting strings, their ordering, and their trailing
-newlines. The water-bodies workflow is deferred until its evaluated package and
-inputs are supplied.
+To submit your own workflow or the supplied scatter example, continue with
+[Submit workflow runs](../how-to-guides/submit-workflow-runs.md). To list runs or
+stop execution, see [Monitor and cancel runs](../how-to-guides/monitor-and-cancel-runs.md).

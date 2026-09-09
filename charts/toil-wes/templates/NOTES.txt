@@ -1,0 +1,7 @@
+{{- if .Values.enabled }}
+Toil WES service: http://{{ include "toil-wes.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/ga4gh/wes/v1/
+
+Access locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "toil-wes.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/ga4gh/wes/v1/service-info
+{{- end }}
