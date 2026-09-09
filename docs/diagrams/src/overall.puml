@@ -1,30 +1,51 @@
 @startuml
-title Current WES Gateway deployment
-actor "WES client" as client
-rectangle "Helm release: wes-gateway" {
-  component "Service :8090" as service
-  component "Deployment\nUvicorn + FastAPI\nwes_api_gateway.main:app" as gateway
-  artifact "Backend ConfigMap" as config
-  database "Gateway run/artifact records\nSQLite PVC (default)" as records
+!include <C4/C4_Deployment>
+title WES Gateway - bundled Kubernetes deployment
+LAYOUT_TOP_DOWN()
+Person(client, "Workflow user", "Calls the gateway endpoint.")
+Deployment_Node(cluster, "Kubernetes cluster", "Minikube or Kubernetes; nine Helm releases managed by Skaffold") {
+  Deployment_Node(gw_ns, "Namespace: wes-gateway", "Helm release: wes-gateway") {
+    Container(gateway, "Gateway API", "Service :8090 / Deployment", "Routes logical namespaces to registered WES services.")
+    ContainerDb(records, "Gateway metadata", "SQLite / 1 GiB PVC", "Durable run and artifact associations.")
+    Container(config, "Backend registry", "ConfigMap mounted as YAML", "tenant-a -> toil-a; tenant-b -> toil-b")
+  }
+  Deployment_Node(a_ns, "Namespace: tenant-a", "Helm releases: tenant-a-bootstrap, tenant-a") {
+    Container(a, "Toil WES A", "Service toil-wes:8080 / Deployment", "Accepts and monitors tenant A workflows.")
+    Container(ca, "Celery worker A", "Deployment", "Consumes tenant A tasks and starts execution.")
+    Container(ja, "Workflow jobs A", "Kubernetes pods", "Execute workflow steps.")
+    ContainerDb(pa, "Shared WES / Celery storage A", "20 GiB RWX PVC / standard", "Work directory and WES state.")
+  }
+  Deployment_Node(b_ns, "Namespace: tenant-b", "Helm releases: tenant-b-bootstrap, tenant-b") {
+    Container(b, "Toil WES B", "Service toil-wes:8080 / Deployment", "Accepts and monitors tenant B workflows.")
+    Container(cb, "Celery worker B", "Deployment", "Consumes tenant B tasks and starts execution.")
+    Container(jb, "Workflow jobs B", "Kubernetes pods", "Execute workflow steps.")
+    ContainerDb(pb, "Shared WES / Celery storage B", "20 GiB RWX PVC / standard", "Work directory and WES state.")
+  }
+  Deployment_Node(rmq_ns, "Namespace: rabbitmq", "Helm releases: rabbitmq-bootstrap, rabbitmq") {
+    ContainerQueue(rmq, "RabbitMQ", "AMQP :5672 / persistent storage", "Separate tenant users, virtual hosts and task queues.")
+  }
+  Deployment_Node(s3_ns, "Namespace: seaweedfs", "Helm releases: seaweedfs-bootstrap, seaweedfs") {
+    ContainerDb(s3, "SeaweedFS", "S3 :8333 / master, filer, volume storage", "Shared S3-compatible workflow storage.")
+  }
 }
-rectangle "Toil bootstrap (separate deployment)" {
-  component "Toil WES\ntenant-a" as a
-  component "Toil WES\ntenant-b" as b
-  component "Celery + Kubernetes execution" as execution
-  database "Workflow storage" as storage
-}
-client --> service : /wes/v1/{namespace}
-service --> gateway
-gateway --> config : load registry at startup
-gateway --> records : persist namespace and original backend
-gateway --> a : WES HTTP requests
-gateway --> b : WES HTTP requests
-a --> execution
-b --> execution
-execution --> storage
-note bottom of gateway
-No built-in JWT validation or identity-based RBAC.
-Other WES services can be configured in the registry.
-PostgreSQL is supported as an alternative metadata store.
-end note
+Rel(client, gateway, "Calls /wes/v1/{namespace}", "HTTP; local port-forward :8090")
+Rel(gateway, config, "Loads at startup")
+Rel(gateway, records, "Reads and writes", "SQL")
+Rel(gateway, a, "Routes tenant-a", "HTTP /ga4gh/wes/v1")
+Rel(gateway, b, "Routes tenant-b", "HTTP /ga4gh/wes/v1")
+Rel(a, rmq, "Publishes tenant A work", "AMQP")
+Rel(b, rmq, "Publishes tenant B work", "AMQP")
+Rel(ca, rmq, "Consumes tenant A work", "AMQP")
+Rel(cb, rmq, "Consumes tenant B work", "AMQP")
+Rel(ca, ja, "Launches", "Kubernetes API")
+Rel(cb, jb, "Launches", "Kubernetes API")
+Rel(a, pa, "Reads and writes")
+Rel(ca, pa, "Reads and writes")
+Rel(b, pb, "Reads and writes")
+Rel(cb, pb, "Reads and writes")
+Rel(ca, s3, "Uses job storage", "S3 / HTTP")
+Rel(cb, s3, "Uses job storage", "S3 / HTTP")
+Rel(ja, s3, "Reads and writes workflow data", "S3 / HTTP")
+Rel(jb, s3, "Reads and writes workflow data", "S3 / HTTP")
+SHOW_LEGEND()
 @enduml

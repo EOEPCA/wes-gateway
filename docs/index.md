@@ -11,7 +11,7 @@ Choose a section according to what you need:
 | Tutorials | Learn by completing a guided example | [Run your first workflow](tutorials/submit-and-monitor-cwl.md) |
 | How-to guides | Accomplish a deployment or operational task | [Deploy with Toil WES](how-to-guides/deploy-with-toil.md) |
 | Reference | Look up settings, defaults, routes, and errors | [Configuration](reference/configuration.md) · [API](reference/api.md) |
-| Explanation | Understand routing, execution, and persistence | [Gateway and execution backends](explanation/architecture.md) |
+| Explanation | Understand routing, execution, and persistence | [Gateway and execution backends](explanation/architecture.md) · [C4 model](explanation/c4/index.md) |
 
 For a new installation, [deploy the complete stack with Skaffold](how-to-guides/deploy-stack-with-skaffold.md),
 or deploy the gateway with an existing Toil service. Then follow the tutorial to

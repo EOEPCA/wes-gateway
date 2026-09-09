@@ -5,19 +5,24 @@ monitoring. Execution remains the responsibility of each registered WES backend.
 This separation lets an installation expose several execution environments without
 requiring workflow users to know their internal service addresses.
 
+## C4 architecture model
+
+The [C4 model pages](c4/index.md) explain the architecture at different levels:
+
+- [System context](c4/system-context.md): users, operators and external execution systems.
+- [Gateway containers](c4/containers.md): the API and persistent run metadata.
+- [WES request flow](c4/request-flow.md): submission, monitoring, cancellation and listing.
+
+The [target hybrid architecture](c4/target-hybrid.md) explains the original
+proposal and the capabilities still planned beyond this implementation.
+
 ## Deployment boundaries
 
-![Gateway deployment and backend connections](../diagrams/out/overall.svg)
-
-The gateway Helm release contains the API service, backend configuration, and
-access to a metadata database. Toil is a separate deployment with its own workers,
-Kubernetes jobs, and workflow storage. Adding a gateway backend registration makes
-an existing WES service reachable; it does not provision its execution resources.
-
-The gateway's readiness check covers its configuration and metadata storage.
-A backend can still be unavailable while the gateway is ready. A namespaced
-`/service-info` request checks the route to that backend; a completed workflow
-also demonstrates that its execution infrastructure works.
+The [Kubernetes deployment view](c4/deployment.md) shows all nine bundled Helm
+releases, internal service connections, and tenant-specific and shared storage.
+The gateway and Toil remain separate services even when Skaffold installs them
+together. Registering a backend connects an existing WES service; it does not
+provision its execution infrastructure.
 
 ## Logical namespaces and routing
 
@@ -28,11 +33,16 @@ namespaces can share one backend, or each can select a separate deployment.
 A submitted run belongs to the logical namespace used at submission. Listing and
 retrieving runs respects that association. Namespace routing does not provide
 caller authentication or separate execution queues. The deployment's external
-access layer must enforce who may use each namespace.
+access layer must enforce who may use each namespace. The selected target uses
+an external API gateway for OIDC token validation and enforcement, with a policy
+engine such as OPA. These responsibilities are outside the WES Gateway
+implementation. See [identity and run ownership](c4/target-hybrid.md#identity-and-run-ownership)
+for the access boundary and the unresolved per-run ownership requirement.
 
 ## Run identity and persistence
 
-![Submission and namespace ownership](../diagrams/out/sequence.svg)
+The [request-flow diagram](c4/request-flow.md) follows submission and subsequent
+requests through the gateway, metadata store and selected backend.
 
 The gateway records a submission before forwarding it and returns its own run ID.
 Later requests use that ID to find the original backend run. Consequently, a
@@ -74,3 +84,15 @@ gateway while workflow storage remains with the backend.
 For deployment steps, see [Deploy with Toil WES](../how-to-guides/deploy-with-toil.md).
 For exact settings and route behavior, use the [configuration](../reference/configuration.md)
 and [API](../reference/api.md) references.
+
+## Extending execution to HPC
+
+An HPC cluster can be connected through an independently configured, compatible
+WES service. The existing registry and namespace routes provide the gateway side
+of that connection. Follow [Add an HPC-backed WES service](../how-to-guides/add-hpc-backend.md)
+for registration, credentials and verification.
+
+This supports the proposal's common WES interface and explicit backend selection.
+It does not provide scheduler provisioning, automatic cloud/HPC selection, data
+staging, or evidence of successful execution on an HPC facility. Those activities
+remain part of the [target hybrid architecture](c4/target-hybrid.md).

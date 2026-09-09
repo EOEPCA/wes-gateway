@@ -1,0 +1,17 @@
+@startuml
+!include <C4/C4_Container>
+title WES Gateway - containers
+LAYOUT_LEFT_RIGHT()
+Person(user, "Workflow user", "Uses curl or another WES client.")
+System_Boundary(wes, "EOEPCA WES Gateway") {
+  Container(api, "Gateway API", "Python / FastAPI / Uvicorn", "Validates namespace and request; forwards WES operations; returns gateway run IDs and artifact URLs.")
+  ContainerDb(db, "Run metadata", "SQLite on PVC; alternatively PostgreSQL", "Stores namespace, original backend, upstream run ID, submission outcome and artifact references.")
+}
+System_Ext(toil, "Registered WES backends", "Toil tenant A and B; optional additional HTTP WES services.")
+System_Ext(storage, "Workflow artifact storage", "Backend-managed HTTP logs and explicitly allowed S3 output locations.")
+Rel(user, api, "Submits, lists, monitors, retrieves artifacts and cancels", "HTTP :8090")
+Rel(api, db, "Persists and resolves namespace-owned run associations", "SQL")
+Rel(api, toil, "Queries capabilities and forwards WES requests", "HTTP(S)")
+Rel(api, storage, "Streams recorded, supported artifact references", "HTTP(S) / optional S3")
+SHOW_LEGEND()
+@enduml

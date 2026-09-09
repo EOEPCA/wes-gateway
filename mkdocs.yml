@@ -82,6 +82,7 @@ nav:
     - Deploy the complete stack with Skaffold: how-to-guides/deploy-stack-with-skaffold.md
     - Deploy with Toil WES: how-to-guides/deploy-with-toil.md
     - Add additional backends: how-to-guides/add-backends.md
+    - Add an HPC-backed WES service: how-to-guides/add-hpc-backend.md
     - Configure storage and credentials: how-to-guides/configure-backends.md
     - Submit workflow runs: how-to-guides/submit-workflow-runs.md
     - Monitor and cancel runs: how-to-guides/monitor-and-cancel-runs.md
@@ -91,5 +92,12 @@ nav:
     - API reference: reference/api.md
   - Explanation:
     - Gateway and execution backends: explanation/architecture.md
+    - C4 model:
+      - Overview: explanation/c4/index.md
+      - System context: explanation/c4/system-context.md
+      - Gateway containers: explanation/c4/containers.md
+      - Kubernetes deployment: explanation/c4/deployment.md
+      - WES request flow: explanation/c4/request-flow.md
+      - Target hybrid architecture (planned): explanation/c4/target-hybrid.md
 
 copyright: <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/license-Apache%20License%202.0-blue" alt="Apache License, Version 2.0" /></a>

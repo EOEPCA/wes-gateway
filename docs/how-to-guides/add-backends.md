@@ -4,7 +4,8 @@ Add a backend entry and a logical namespace mapping to the gateway registry, the
 apply the configuration to make a compatible WES HTTP service available to clients.
 
 This guide assumes the gateway is already deployed with Toil. For initial setup,
-see [Deploy with Toil WES](deploy-with-toil.md).
+see [Deploy with Toil WES](deploy-with-toil.md). For a scheduler-backed execution
+service, follow [Add an HPC-backed WES service](add-hpc-backend.md).
 
 ## 1. Deploy and identify the new WES service
 

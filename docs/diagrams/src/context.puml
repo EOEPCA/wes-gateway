@@ -1,0 +1,17 @@
+@startuml
+!include <C4/C4_Context>
+title WES Gateway - system context
+LAYOUT_LEFT_RIGHT()
+Person(user, "Workflow user", "Submits workflows and retrieves status, logs and outputs using a WES client.")
+Person(operator, "Deployment operator", "Configures backends, namespaces, credentials and persistent metadata.")
+System(gateway, "EOEPCA WES Gateway", "Routes namespaced WES requests and preserves run ownership.")
+System_Ext(toil, "Toil WES", "Executes workflows using its own workers and storage. Two tenants are bundled.")
+System_Ext(other, "Additional WES service", "Optional compatible HTTP WES backend, registered by the operator.")
+System_Ext(storage, "Workflow artifact storage", "Backend-managed logs and outputs; S3 retrieval requires explicit gateway configuration.")
+Rel(user, gateway, "Submits, lists, monitors and cancels runs", "HTTP /wes/v1/{namespace}")
+Rel(operator, gateway, "Deploys and configures", "Helm / YAML registry")
+Rel(gateway, toil, "Forwards requests using the recorded backend run ID", "WES over HTTP")
+Rel(gateway, other, "Forwards requests when registered", "WES over HTTP(S)")
+Rel(gateway, storage, "Retrieves supported run artifacts", "HTTP(S) / optional S3")
+SHOW_LEGEND()
+@enduml
