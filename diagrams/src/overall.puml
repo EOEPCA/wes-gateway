@@ -1,0 +1,37 @@
+@startuml
+!include <kubernetes/k8s-sprites-unlabeled-25pct>
+
+component "WES Gateway Client" as wes_c
+
+interface """0.0.0.0:8090""" as wes
+
+component "Knative Service" as knservice {
+    component uvicorn
+    component "WES Gateway" as ws_gw {
+        component "FastAPI" as fastapi
+    }
+
+    internal_http -- uvicorn
+    uvicorn -> ws_gw : Invoke ""wes-gateway.main:app""
+}
+
+cloud "<$node>\nk8s" as k8s {
+    component "<$node>\nToil k8s" as toil_k8s
+}
+
+component "Toil HPC" as toil_hpc
+component "SLURM / PBS" as slurm_pbs
+
+component "OIDC/RBAC" as oidc_rbac
+
+wes_c --> wes : Invoke WES APIs\nover HTTP
+wes -- internal_http : Handle
+
+knservice --> toil_k8s
+
+knservice -> toil_hpc
+toil_hpc -> slurm_pbs
+
+ws_gw --> oidc_rbac
+
+@enduml

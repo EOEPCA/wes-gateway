@@ -1,0 +1,91 @@
+@startuml
+autonumber
+
+actor Client as "EO Application / Client"
+participant GW as "Hybrid WES Gateway"
+participant Auth as "OIDC / RBAC"
+participant Policy as "Backend Routing Policy"
+database Registry as "Run Registry"
+participant K8sWES as "Toil WES - Kubernetes"
+participant HPCWES as "Toil WES - HPC"
+participant K8s as "Kubernetes Cluster"
+participant HPC as "SLURM / PBS / ESA HPC"
+database Data as "Data Staging / Storage"
+
+activate Client
+activate Registry
+activate Data
+
+== Submission ==
+
+Client -> GW ++ : Submit workflow (WES API)\nCWL + params + tags
+GW -> Auth ++ : Validate JWT\nAuthorize namespace/user
+Auth --> GW -- : Identity + execution domain
+
+GW -> Policy ++ : Evaluate routing\n(tags / policy)
+Policy --> GW -- : Selected backend
+
+alt Kubernetes backend
+    GW -> K8sWES ++ : Forward run request
+    K8sWES -> Data : Stage inputs
+    K8sWES -> K8s ++ : Submit job / pods
+    K8s --> K8sWES -- : Backend run ID + status
+    K8sWES --> GW -- : Backend run ID
+else HPC backend
+    GW -> HPCWES ++ : Forward run request
+    HPCWES -> Data : Stage inputs
+    HPCWES -> HPC ++ : sbatch / qsub
+    HPC --> HPCWES -- : Backend run ID + queue state
+    HPCWES --> GW -- : Backend run ID
+end
+
+GW -> Registry : Store mapping\nexternal ID → backend → backend ID
+GW --> Client -- : Return run ID
+
+== Monitoring Loop ==
+
+loop Status / Logs / Monitoring
+    Client -> GW ++ : Get status / logs
+    GW -> Registry : Resolve backend mapping
+
+    alt Kubernetes run
+        GW -> K8sWES ++ : Proxy request
+        K8sWES -> K8s ++ : Query pods / logs
+        K8s --> K8sWES -- : Status / logs
+        K8sWES --> GW -- : Normalized response
+    else HPC run
+        GW -> HPCWES ++ : Proxy request
+        HPCWES -> HPC ++ : Query queue / logs
+        HPC --> HPCWES -- : Status / logs
+        HPCWES --> GW -- : Normalized response
+    end
+
+    GW --> Client -- : Unified WES response
+end
+
+== Cancellation ==
+
+opt Cancel run
+    Client -> GW ++ : Cancel request
+    GW -> Registry : Resolve backend
+
+    alt Kubernetes run
+        GW -> K8sWES ++ : Cancel run
+        K8sWES -> K8s ++ : Delete job
+        K8s --> K8sWES -- : Cancellation acknowledged
+        K8sWES --> GW -- : Cancellation acknowledged
+    else HPC run
+        GW -> HPCWES ++ : Cancel run
+        HPCWES -> HPC ++ : scancel / qdel
+        HPC --> HPCWES -- : Cancellation acknowledged
+        HPCWES --> GW -- : Cancellation acknowledged
+    end
+
+    GW --> Client -- : Cancellation acknowledged
+end
+
+deactivate Client
+deactivate Registry
+deactivate Data
+
+@enduml
